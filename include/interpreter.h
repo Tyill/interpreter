@@ -7,7 +7,6 @@ class InterpreterImpl;
 class Interpreter {
 
 public:
-
   using UserFunction = std::function<std::string(const std::string&...)>;
   using UserOperator = std::function<std::string(const std::string& operand1, const std::string& operand2)>;
 
