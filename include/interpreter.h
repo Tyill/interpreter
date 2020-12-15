@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <functional>
 
 class InterpreterImpl;
@@ -11,6 +12,7 @@ public:
   using UserOperator = std::function<std::string(const std::string& operand1, const std::string& operand2)>;
 
   Interpreter(std::string scenar, std::string& err);
+  ~Interpreter();
 
   bool addFunction(const std::string& name, UserFunction ufunc);
 
