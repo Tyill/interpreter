@@ -2,7 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <map>
 #include <functional>
 
 class InterpreterImpl;
@@ -13,8 +12,7 @@ public:
   using UserOperator = std::function<std::string(const std::string& operand1, const std::string& operand2)>;
 
   explicit 
-  Interpreter(const std::map<std::string, UserFunction>& ufuncs = std::map<std::string, UserFunction>(),
-              const std::map<std::string, UserOperator>& uopers = std::map<std::string, UserOperator>());
+  Interpreter();
   ~Interpreter();
 
   Interpreter(const Interpreter&) = delete;
@@ -26,7 +24,7 @@ public:
 
   bool parseScenar(std::string scenar, std::string& out_err);
   
-  bool start(bool asynch);
+  bool start(bool async);
 
   bool stop();
 
