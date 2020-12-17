@@ -33,24 +33,13 @@ private:
     MACRO,
     VARIABLE,
     VALUE,
-  };
-  enum class OperatorType {
-    VARIABLE_VARIABLE,
-    VALUE_VALUE,
-    FUNCTION_FUNCTION,
-    VARIABLE_VALUE,
-    VALUE_VARIABLE,
-    VARIABLE_FUNCTION,
-    FUNCTION_VARIABLE,
-    VALUE_FUNCTION,
-    FUNCTION_VALUE,
-  };
+  }; 
   struct Expression{    
     Keyword keyw;
     size_t iConditionEnd;
     size_t iBodyEnd;
     vector<string> params;
-    OperatorType oprType;
+    string result;
   };
   map<string, Interpreter::UserFunction> m_ufunc;
   map<string, pair<Interpreter::UserOperator, uint32_t>> m_uoper; // operator, priority
@@ -64,13 +53,14 @@ private:
 
   string runUserFunction(size_t iExpr);
   string runUserOperator(size_t iExpr);
-  string introValue(size_t iExpr);
   void workCycle();
   Keyword keywordByName(const string& oprName);  
   string getNextParam(const string& scenar, size_t& cpos, char symb);  
+  string getOperatorAtFirst(const string& scenar, size_t& cpos);
+  string getFunctionAtFirst(const string& scenar, size_t& cpos);
   string getNextOperator(const string& scenar, size_t& cpos);
-  string getNextFunction(const string& scenar, size_t& cpos);
   string getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd);
+  bool isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos);
   bool parseScenar(const string& scenar, Keyword mainKeyword, size_t gpos);
   bool checkScenar(const string& scenar);
 };
@@ -136,12 +126,12 @@ bool InterpreterImpl::checkScenar(const string& scenar) {
 }
 
 bool InterpreterImpl::addFunction(const string& name, Interpreter::UserFunction ufunc){
-  if (name.empty() || (keywordByName(name) != Keyword::SEQUENCE)) return false;
+  if (name.empty() || (keywordByName(name) != Keyword::SEQUENCE) || isFindKeySymbol(name, 0, name.size())) return false;
   m_ufunc.insert({ name, move(ufunc) });
   return true;
 }
 bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority){
-  if (name.empty() || (keywordByName(name) != Keyword::SEQUENCE)) return false;
+  if (name.empty() || (keywordByName(name) != Keyword::SEQUENCE) || isFindKeySymbol(name, 0, name.size())) return false;
   m_uoper.insert({ name, {move(uopr), priority} });
   return true;
 }
@@ -186,33 +176,15 @@ void InterpreterImpl::workCycle(){
 
     auto& expr = m_expr[i];
     switch (expr.keyw){
-      case Keyword::VARIABLE: {
-        string result = introValue(i + 1);
-        while(i < expr.iBodyEnd - 1){ 
-          //const string& opr = m_expr[i + 1].args[1];
-          //if (!opr.empty())
-           // result = m_uoper[opr](result, introValue(i + 1));
-        }
+      case Keyword::EXPRESSION: {
+        
       }
       break;
       case Keyword::FUNCTION: {
-        for (size_t j = i; j < i + expr.iBodyEnd; ++j){
-         // expr.result = introValue(j);
-        }
+        
       }
       break;
     }
-  }
-}
-    
-string InterpreterImpl::introValue(size_t iExpr){
-
-  auto& cval = m_expr[iExpr];
-  switch (cval.keyw){
-    case Keyword::VARIABLE: {
-
-    }
-    break;
   }
 }
 
@@ -304,15 +276,15 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
         }       
         else {
           string fName, oprName;
-          size_t cposFunc = cpos, cposOpr = cpos;
-          if (!(fName = getNextFunction(scenar, cposFunc)).empty() && ((cposFunc - fName.size()) == cpos)) {
+          if (!(fName = getFunctionAtFirst(scenar, cpos)).empty()) {
 
             CHECK(m_ufunc.find(fName) == m_ufunc.end());
 
             m_expr.emplace_back<Expression>({ Keyword::FUNCTION, iExpr, iExpr, { fName } });
 
-            cpos = cposFunc;
+            size_t cposMem = cpos;
             const string args = getIntroScenar(scenar, cpos, '(', ')');
+            CHECK(args.empty() && (cposMem + 2 != cpos));
             if (!args.empty())
               CHECK(!parseScenar(args, Keyword::ARGUMENT, gpos + cpos - args.size() - 2));
 
@@ -320,7 +292,7 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
 
             if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
           }
-          else if (!(oprName = getNextOperator(scenar, cposOpr)).empty() && ((cposOpr - oprName.size()) == cpos)) {
+          else if (!(oprName = getOperatorAtFirst(scenar, cpos)).empty()) {
 
             CHECK(m_uoper.find(oprName) == m_uoper.end());
 
@@ -340,112 +312,100 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
     }
     break;
     case InterpreterImpl::Keyword::EXPRESSION: {
-      Keyword prevType = Keyword::VARIABLE;      
       while (cpos < ssz) {
+        string oprName, fName;
+        if (scenar[cpos] == '$') {    
+          size_t posmem = cpos;
+          oprName = getNextOperator(scenar, cpos);
 
-        if (startWith(scenar, cpos, "$")) {  // variable
-          string vname = "";
-          if (m_expr[iExpr].keyw != Keyword::OPERATOR) {
-            size_t posmem = cpos;
-            auto opr = getNextOperator(scenar, cpos);
-            if (!opr.empty()) {
-              vname = scenar.substr(posmem, cpos - posmem - opr.size());
+          if (!oprName.empty()) {
+            string vName = scenar.substr(posmem, cpos - posmem - oprName.size());
+            if (m_var.find(vName) == m_var.end())
+              m_var.insert({ vName, "" });
 
-              //  m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, { opr, vname } });
-            }
-            else {
-              vname = scenar.substr(cpos);
-              //    m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr,{ vname } });
-            }
+            m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, { vName } }); ++iExpr;
+            m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, { oprName } }); ++iExpr;
           }
-          else { // m_expr[iExpr].keyw == Keyword::OPERATOR
-            size_t posmem = cpos;
-            auto opr = getNextOperator(scenar, cpos);
-            if (!opr.empty()) {
-              vname = scenar.substr(posmem, cpos - posmem - opr.size());
-            }
-            else {
-              vname = scenar.substr(cpos);
-              if (vname.back() == ';') vname.pop_back();
-              cpos = ssz; // to end
-            }
-          }
-          if (vname.back() == ';') vname.pop_back();
-          if (m_var.find(vname) != m_var.end())
-            m_var.insert({ vname, "" });
+          else {
+            string vName = scenar.substr(cpos);
 
-          m_expr[iExpr].params.push_back(vname);
-          if (prevType == Keyword::FUNCTION)
-            m_expr[iExpr].oprType = OperatorType::FUNCTION_VARIABLE;
-          else if (prevType == Keyword::VARIABLE)
-            m_expr[iExpr].oprType = OperatorType::VARIABLE_VARIABLE;
-          else
-            m_expr[iExpr].oprType = OperatorType::VALUE_VARIABLE;
+            if (vName.back() == ';') vName.pop_back();
+            
+            if (m_var.find(vName) == m_var.end())
+              m_var.insert({ vName, "" });
+
+            m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, { vName } });
+            break;
+          }
+        }
+        else if (!(fName = getFunctionAtFirst(scenar, cpos)).empty()){
+          CHECK(m_ufunc.find(fName) == m_ufunc.end());
+
+          m_expr.emplace_back<Expression>({ Keyword::FUNCTION, iExpr, iExpr, { fName } });
+
+          size_t cposMem = cpos;
+          const string args = getIntroScenar(scenar, cpos, '(', ')');
+          CHECK(args.empty() && (cposMem + 2 != cpos));
+          if (!args.empty())
+            CHECK(!parseScenar(args, Keyword::ARGUMENT, gpos + cpos - args.size() - 2));
+
+          iExpr = m_expr[iExpr].iConditionEnd = m_expr.size();
+
+          if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+        }
+        else if (!(oprName = getOperatorAtFirst(scenar, cpos)).empty()) {
+          CHECK(m_uoper.find(oprName) == m_uoper.end());
+
+          m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, { oprName } }); ++iExpr;
+        }
+        else {  // value
+          size_t posmem = cpos;
+          oprName = getNextOperator(scenar, cpos);
+
+          if (!oprName.empty()) {
+            if (isFindKeySymbol(scenar, posmem, cpos - oprName.size())){
+              m_err = "Error scenar pos " + to_string(posmem + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
+              return false;
+            }
+            string value = scenar.substr(posmem, cpos - posmem - oprName.size());
+           
+            m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, { value } }); ++iExpr;
+            m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, { oprName } }); ++iExpr;
+          }
+          else {
+            if (isFindKeySymbol(scenar, cpos, scenar.size())){
+              m_err = "Error scenar pos " + to_string(cpos + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
+              return false;
+            }
+            string value = scenar.substr(cpos);
+
+            if (value.back() == ';') value.pop_back();
+                        
+            m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, { value } });
+            break;
+          }
         }
       }
-
-      // 
-
-      //      //string vname = !opr.empty() ? scenar.substr(posmem, cpos - posmem - opr.size()) : scenar.substr(cpos);
-      //      //if (!vname.empty() && (vname.back() == ';')) vname.pop_back();
-      //      //if (m_var.find(vname) != m_var.end())
-      //      //  m_var.insert({ vname, "" });
-      //      //        
-      //      //if (opr.empty()) {
-      //      //  m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, { vname } });
-      //      //  ++iExpr;
-      //      //  break;
-      //      //}
-      //    }
-      //    else {
-      //      auto fName = getNextParam(scenar, cpos, '(');
-      //      if (!fName.empty()) {            // function
-      //        CHECK(m_ufunc.find(fName) == m_ufunc.end());
-
-      //        m_expr.emplace_back<Expression>({ Keyword::FUNCTION, iExpr, iExpr,{ fName } }); // fName, opr
-
-      //        --cpos;
-      //        const string args = getIntroScenar(scenar, cpos, '(', ')');
-      //        if (!args.empty()) {
-      //          CHECK(!parseScenar(args, Keyword::ARGUMENT, gpos + cpos - args.size() - 2));
-      //        }
-
-      //        auto opr = getNextOperator(scenar, cpos);
-      //        if (opr.empty()) cpos = ssz; // end
-
-      //        m_expr[iExpr].args.push_back(opr);
-
-      //        iExpr = m_expr[iExpr].iConditionEnd = m_expr.size();
-      //      }
-      //      else {                            // value
-      //        size_t posmem = cpos;
-      //        auto opr = getNextOperator(scenar, cpos);
-
-      //        string value = !opr.empty() ? scenar.substr(posmem, cpos - posmem - opr.size()) : scenar.substr(cpos);
-      //        if (!value.empty() && (value.back() == ';')) value.pop_back();
-
-      //        if (opr.empty()) cpos = ssz;    // end
-
-      //        m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr,{ value, opr } });    // value, opr
-      //        ++iExpr;
-      //      }
-      //    }
-      //  }
-      //} 
     }
     break;
     case InterpreterImpl::Keyword::ARGUMENT:{
-      const string auxScenar = "," + scenar + ",";
-      while (cpos < ssz){
+      size_t cp = cpos;
+      int bordCnt = 0;
+      while (cp < ssz){
+        if (scenar[cp] == '(') ++bordCnt;
+        if (scenar[cp] == ')') --bordCnt;
+        if (((scenar[cp] == ',') || (cp == ssz - 1)) && (bordCnt == 0)){
+          m_expr.emplace_back<Expression>({ Keyword::ARGUMENT, iExpr, iExpr, {} });
 
-        m_expr.emplace_back<Expression>({ Keyword::ARGUMENT, iExpr, iExpr, { } });  
+          if (cp == ssz - 1) ++cp;
+          
+          const string arg = scenar.substr(cpos, cp - cpos);
+          CHECK(!arg.empty() && !parseScenar(arg, Keyword::EXPRESSION, gpos + cpos));
 
-        const string arg = getIntroScenar(auxScenar, cpos, ',', ',');
-        CHECK(!arg.empty() && !parseScenar(arg, Keyword::EXPRESSION, gpos + cpos - arg.size() - 2));
-         
-        iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-       
-        --cpos;
+          iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+          cpos = cp + 1;
+        }        
+        ++cp;
       }
     }
     break;
@@ -466,9 +426,10 @@ string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) {
   string opr = "";
   for (const auto& op : m_uoper) {
     size_t pos = scenar.find(op.first, cpos);
-    if ((pos != string::npos) && ((pos < minp) || (minp == string::npos))) {
+    if ((pos != string::npos) && ((pos <= minp) || (minp == string::npos))) {
+      if (opr.empty() || (pos < minp) || (opr.size() < op.first.size())) // for '+' and '++'
+        opr = op.first;
       minp = pos;
-      opr = op.first;
     }
   }
   if (minp != string::npos) {
@@ -476,42 +437,37 @@ string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) {
   }
   return opr;
 }
-string InterpreterImpl::getNextFunction(const string& scenar, size_t& cpos) {
-  size_t minp = string::npos;
-  string fName = "";
-  for (const auto& f : m_ufunc) {
-    size_t pos = scenar.find(f.first, cpos);
-    if ((pos != string::npos) && ((pos < minp) || (minp == string::npos))) {
-      minp = pos;
-      fName = f.first;
+string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) {
+  string opr = "";
+  for (const auto& op : m_uoper) {
+    if (startWith(scenar, cpos, op.first)){      
+      if (opr.empty() || (opr.size() < op.first.size())) // for '+' and '++'
+        opr = op.first;
     }
   }
-  if (minp != string::npos) {
-    cpos = minp + fName.size();
+  cpos += opr.size();
+  return opr;
+}
+string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) {
+  string fName = "";
+  for (const auto& f : m_ufunc) {
+    if (startWith(scenar, cpos, f.first)){
+      fName = f.first;
+      break;
+    }
   }
+  cpos += fName.size();
   return fName;
 }
 string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd){
   size_t ssz = scenar.size(),
          cp = cpos;
   int bordCnt = 0;
-  if (symbBegin != symbEnd) {
-    while (cp < ssz) {
-      if (scenar[cp] == symbBegin) ++bordCnt;
-      if (scenar[cp] == symbEnd) --bordCnt;
-      if (bordCnt == 0) break;
-      ++cp;
-    }
-  }
-  else {
-    while (cp < ssz) {
-      if (scenar[cp] == symbBegin) ++bordCnt;
-      if (bordCnt == 2) {
-        bordCnt = 0;
-        break;
-      }
-      ++cp;
-    }
+  while (cp < ssz){
+    if (scenar[cp] == symbBegin) ++bordCnt;
+    if (scenar[cp] == symbEnd) --bordCnt;
+    if (bordCnt == 0) break;
+    ++cp;
   }
   string res = "";
   if ((bordCnt == 0) && (cp > cpos)) {
@@ -519,6 +475,16 @@ string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char 
     cpos = cp + 1;
   }  
   return res;
+}
+bool InterpreterImpl::isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos){
+  return (scenar.find('(', cpos) < maxpos) ||
+         (scenar.find(')', cpos) < maxpos) ||
+         (scenar.find('{', cpos) < maxpos) ||
+         (scenar.find('}', cpos) < maxpos) ||
+         (scenar.find(',', cpos) < maxpos) ||
+         (scenar.find(';', cpos) < maxpos) ||
+         (scenar.find('#', cpos) < maxpos) ||
+         (scenar.find('$', cpos) < maxpos);
 }
 InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) {
   Keyword nextOpr = Keyword::SEQUENCE;
@@ -528,6 +494,7 @@ InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) {
   else if (oprName == "while") nextOpr = Keyword::WHILE;
   else if (oprName == "for") nextOpr = Keyword::FOR;
   else if (oprName == "break") nextOpr = Keyword::BREAK;
+  else if (oprName == "#macro") nextOpr = Keyword::MACRO;
   else if (oprName == "continue") nextOpr = Keyword::CONTINUE;
   return nextOpr;
 }

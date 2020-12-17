@@ -7,15 +7,23 @@ int main(int argc, char* argv[])
 {  
   Interpreter ir;
 
-  ir.addOperator("+", [](const string& opd1, const string& opd2) ->string {
+  bool  ok = ir.addOperator("+", [](string& opd1, string& opd2) ->string {
+    return "";
+  }, 0);
+
+  ok = ir.addOperator("++", [](string& opd1, string& opd2) ->string {
+    return "";
+  }, 0);
+
+  ok = ir.addOperator("=", [](string& opd1, string& opd2) ->string {
+    return "";
+  }, 0);
+
+  ok = ir.addFunction("myFunc", [](const vector<string>& args) ->string {
     return "";
   });
 
-  ir.addFunction("myFunc", [](const vector<string>& args) ->string {
-    return "";
-  });
-
-  string scenar = "$a = 4; $b = $a + 14; myFunc(); for($b + myFunc($a)){ $b = $b + 1;} ; // abcd \n #macro dd{ $c = 4; }; #dd; // abcd \n  ",
+  string scenar = "++$a = 4; $b = $a + 14; myFunc($a, myFunc($a + myFunc($b = 23),$b = 23 + $a,$b)); for($b + myFunc($a)){ $b = $b + 1;} ; // abcd \n #macro dd{ $c = 4; }; #dd; // abcd \n  ",
          err = "";
   ir.parseScenar(scenar, err);
 
