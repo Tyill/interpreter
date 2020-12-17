@@ -9,7 +9,7 @@ class Interpreter {
 
 public:
   using UserFunction = std::function<std::string(const std::vector<std::string>& args)>;
-  using UserOperator = std::function<std::string(const std::string& operand1, const std::string& operand2)>;
+  using UserOperator = std::function<std::string(std::string& ioOperandOne, std::string& ioOperandTwo)>;
 
   explicit 
   Interpreter();
@@ -20,7 +20,7 @@ public:
 
   bool addFunction(const std::string& name, UserFunction ufunc);
 
-  bool addOperator(const std::string& name, UserOperator uopr);
+  bool addOperator(const std::string& name, UserOperator uopr, uint32_t priority);
 
   bool parseScenar(std::string scenar, std::string& out_err);
   
