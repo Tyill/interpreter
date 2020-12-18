@@ -263,13 +263,13 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
             break;
             case Keyword::BREAK: {
               isBreak = true;
-              if (m_expr[i].keyw != Keyword::WHILE)
+              if (m_expr[iExpr].keyw != Keyword::WHILE)
                 g_result = "break";
             }
             break;
             case Keyword::CONTINUE: {
               isContinue = true;
-              if (m_expr[i].keyw != Keyword::WHILE)
+              if (m_expr[iExpr].keyw != Keyword::WHILE)
                 g_result = "continue";              
             }
             break;
