@@ -31,6 +31,9 @@ public:
 
   bool pause(bool set);
 
+  /// return result
+//  string cmd(std::string scenar, std::string& out_err);
+
 private:
   InterpreterImpl* m_d = nullptr;
 };
