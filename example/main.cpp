@@ -23,9 +23,9 @@ int main(int argc, char* argv[])
     return "";
   });
 
-  string scenar = "++$a = 4; $b = $a + 14; myFunc($a, myFunc($a + myFunc($b = 23),$b = 23 + $a,$b)); for($b + myFunc($a)){ $b = $b + 1;} ; // abcd \n #macro dd{ $c = 4; }; #dd; // abcd \n  ",
-         err = "";
-  ir.parseScenar(scenar, err);
+  string scenar = "++$a = 4; $b = $a + 14; myFunc($a, myFunc($a + myFunc($b = 23),$b = 23 + $a,$b)); for($b + myFunc($a)){ $b = $b + 1;} ; // abcd \n #macro dd{ $c = 4; }; #dd; // abcd \n  ";
+         
+  string res = ir.cmd(scenar);
 
 	return 0;
 }

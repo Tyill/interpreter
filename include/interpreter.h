@@ -22,17 +22,9 @@ public:
   bool addFunction(const std::string& name, UserFunction ufunc);
 
   bool addOperator(const std::string& name, UserOperator uopr, uint32_t priority);
-
-  bool parseScenar(std::string scenar, std::string& out_err);
-  
-  bool start(bool async);
-
-  bool stop();
-
-  bool pause(bool set);
-
-  /// return result
-//  string cmd(std::string scenar, std::string& out_err);
+    
+  /// return result or error
+  std::string cmd(std::string scenar);
 
 private:
   InterpreterImpl* m_d = nullptr;

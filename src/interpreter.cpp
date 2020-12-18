@@ -9,15 +9,12 @@ using namespace std;
 
 class InterpreterImpl {
 public:
-  InterpreterImpl();
+  InterpreterImpl() = default;
   bool addFunction(const string& name, Interpreter::UserFunction ufunc);
   bool addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority);
-  bool parseScenar(string scenar, string& out_err);
-  bool start(bool asynch);
-  bool stop();
-  bool pause(bool set);
+  string cmd(string scenar);
+ 
 private:
-  bool m_run, m_pause;
   enum class Keyword{
     SEQUENCE,
     EXPRESSION,
@@ -48,14 +45,12 @@ private:
   map<string, string> m_var;
   map<string, string> m_macro;
   vector<Expression> m_expr;
-  string m_err;
+  string m_err, m_prevScenar, m_result;
 
   vector<string> split(const string& str, char sep);
   bool startWith(const string& str, size_t pos, const string& begin);
   bool isNumber(const string& s);
 
-  string runUserFunction(size_t iExpr);
-  string runUserOperator(size_t iExpr);
   string calcOperation(Keyword mainKeyword, size_t iExpr);
   string calcExpression(size_t iBegin, size_t iEnd);
   Keyword keywordByName(const string& oprName);  
@@ -69,12 +64,7 @@ private:
   bool checkScenar(const string& scenar);
 };
 
-InterpreterImpl::InterpreterImpl() :
-  m_run(false),
-  m_pause(false){
-}
-
-bool InterpreterImpl::parseScenar(string scenar, string& out_err) {
+string InterpreterImpl::cmd(string scenar) {
 
   size_t commp = scenar.find("//");
   while (commp != string::npos) {
@@ -93,11 +83,24 @@ bool InterpreterImpl::parseScenar(string scenar, string& out_err) {
   scenar.erase(remove(scenar.begin(), scenar.end(), '\r'), scenar.end());
   scenar.erase(remove(scenar.begin(), scenar.end(), ' '), scenar.end());
 
-  if (!checkScenar(scenar) || !parseScenar(move(scenar), Keyword::SEQUENCE, 0)) {
+  if (scenar.empty())
+    return "Error: empty scenar";
+
+  if (m_prevScenar != scenar){
     m_expr.clear();
-    out_err = m_err;
+    if (!checkScenar(scenar) || !parseScenar(scenar, Keyword::SEQUENCE, 0)) {
+      return m_err;
+    }
+    m_prevScenar = scenar;
   }
-  return out_err.empty();
+  for (auto& ex : m_expr) 
+    ex.iOperator = size_t(-1);
+
+  for (size_t i = 0; i < m_expr.size();) {
+    m_result = calcOperation(m_expr[i].keyw, i);
+    i = max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
+  }
+  return m_result;
 }
 
 bool InterpreterImpl::checkScenar(const string& scenar) {
@@ -139,25 +142,6 @@ bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator 
   m_uoper.insert({ name, {move(uopr), priority} });
   return true;
 }
-bool InterpreterImpl::start(bool async){
-  if (m_expr.empty()) return false;
-  if (!m_run){
-    m_run = true;
-  //  calcExpression();
-  }
-  return true;
-}
-bool InterpreterImpl::stop(){
-  if (m_expr.empty()) return false;
-  m_run = false;
-  m_pause = false;
-  return true;
-}
-bool InterpreterImpl::pause(bool set){
-  if (m_expr.empty()) return false;
-  m_pause = set;
-  return true;
-}
 
 vector<string> InterpreterImpl::split(const string& str, char sep) {
   vector<string> res;
@@ -171,7 +155,7 @@ vector<string> InterpreterImpl::split(const string& str, char sep) {
 bool InterpreterImpl::startWith(const string& str, size_t pos, const string& begin){
   return (str.find(begin, pos) - pos) == 0;
 }
-bool isNumber(const string& s) {
+bool InterpreterImpl::isNumber(const string& s) {
   for (auto c : s) {
     if (!std::isdigit(c)) {
       return false;
@@ -184,6 +168,14 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
         
   string g_result;
   switch (mainKeyword){
+    case Keyword::VARIABLE: {
+      g_result = m_var[m_expr[iExpr].params];
+    }
+    break;
+    case Keyword::VALUE: {
+      g_result = m_expr[iExpr].params;
+    }
+    break;
     case Keyword::EXPRESSION: {
       g_result = calcExpression(iExpr + 1, m_expr[iExpr].iBodyEnd);
     }
@@ -246,7 +238,6 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
   }
   return g_result;
 }
-
 string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
    
   string g_result;
@@ -301,13 +292,6 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
     if (pRightOperd && (pRightOperd->iOperator == size_t(-1))) pRightOperd->iOperator = iOp;
   }
   return g_result;
-}
-
-string InterpreterImpl::runUserFunction(size_t iExpr) {
-  return "";// function<string(const vector<string>&)>(m_expr[iExpr].ufunc)(m_expr[iExpr].args);
-}
-string InterpreterImpl::runUserOperator(size_t iExpr) {
-  return "";//m_expr[iExpr].uoper(m_expr[iExpr].args[0], m_expr[iExpr].args[1]);
 }
 
 bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, size_t gpos){
@@ -620,21 +604,12 @@ Interpreter::Interpreter(){
 Interpreter::~Interpreter(){
   delete m_d;
 }
-bool Interpreter::parseScenar(string scenar, string& out_err){   
-  return m_d->parseScenar(scenar, out_err);
+string Interpreter::cmd(string scenar){
+  return m_d->cmd(move(scenar));
 }
 bool Interpreter::addFunction(const string& name, UserFunction ufunc){
   return m_d->addFunction(name, ufunc);
 }
 bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t priority){
   return m_d->addOperator(name, uoper, priority);
-}
-bool Interpreter::start(bool asynch){
-  return m_d->start(asynch);
-}
-bool Interpreter::stop(){
-  return m_d->stop();
-}
-bool Interpreter::pause(bool set){
-  return m_d->pause(set);
 }
