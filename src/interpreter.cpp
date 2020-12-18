@@ -209,13 +209,10 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
       size_t iBegin = iExpr + 1;
       size_t iEnd = m_expr[iExpr].iConditionEnd;
       vector<string> args;
-      for (size_t i = iBegin; i < iEnd; ++i) {
-        if (m_expr[i].keyw == Keyword::FUNCTION) {
-          i = m_expr[i].iConditionEnd;
-          if (i >= iEnd) break;
-        }
+      for (size_t i = iBegin; i < iEnd;) {
         if (m_expr[i].keyw == Keyword::ARGUMENT) {
           args.emplace_back(calcExpression(i + 1, m_expr[i].iBodyEnd));
+          i = m_expr[i].iBodyEnd;
         }
       }      
       g_result = m_ufunc[m_expr[iExpr].params](args);
@@ -245,13 +242,8 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
       if ((m_expr[iExpr].keyw == Keyword::ELSE) || (isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
         bool isContinue = false,
              isBreak = false;
-        for (size_t i = iCondEnd; i < iBodyEnd; ++i) {
-          switch (m_expr[i].keyw) {
-            case Keyword::FUNCTION: {
-              calcOperation(Keyword::FUNCTION, i);
-              i = m_expr[i].iConditionEnd;
-            }
-            break;
+        for (size_t i = iCondEnd; i < iBodyEnd;) {
+          switch (m_expr[i].keyw) {            
             case Keyword::EXPRESSION: {
               calcExpression(i + 1, m_expr[i].iBodyEnd);
               i = m_expr[i].iBodyEnd;
@@ -261,20 +253,30 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
             case Keyword::IF:
             case Keyword::ELSE:
             case Keyword::ELSE_IF: {
-              calcOperation(m_expr[i].keyw, i);
+              string res = calcOperation(m_expr[i].keyw, i);
+              if (m_expr[i].keyw != Keyword::WHILE){
+                isBreak = res == "break";
+                isContinue = res == "continue";
+              }
               i = m_expr[i].iBodyEnd;
             }
             break;
             case Keyword::BREAK: {
               isBreak = true;
+              if (m_expr[i].keyw != Keyword::WHILE)
+                g_result = "break";
             }
             break;
             case Keyword::CONTINUE: {
               isContinue = true;
+              if (m_expr[i].keyw != Keyword::WHILE)
+                g_result = "continue";              
             }
             break;
           }  
-          if ((m_expr[iExpr].keyw == Keyword::WHILE) && (isBreak || isContinue || (i >= iBodyEnd))){
+          if (isContinue || isBreak) i = iBodyEnd;
+
+          if ((m_expr[iExpr].keyw == Keyword::WHILE) && (i >= iBodyEnd)){
             isContinue = false;
             if (isBreak) break;
 
@@ -283,9 +285,9 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
 
             condn = calcExpression(iBegin, iCondEnd);
             if ((isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
-              i = iCondEnd - 1;
               for (size_t i = iCondEnd; i < iBodyEnd; ++i)
                 m_expr[i].iOperator = size_t(-1);
+              i = iCondEnd;
             }            
           }           
         }

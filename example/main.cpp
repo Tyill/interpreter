@@ -104,10 +104,10 @@ int main(int argc, char* argv[])
     return to_string(res);
   });
 
-  string scenar = "$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; if ($a < 3){ break;} } summ($a, $b);";
+  string scenar = "$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;";
          
-  string res = ir.cmd(scenar);
+  string res = ir.cmd(scenar); // 9
 
-	return 0;
+  return 0;
 }
 
