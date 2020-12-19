@@ -19,23 +19,23 @@ $c = 5; $d = $c + 5; summ($c, $d, 6);
 ```
 
 ## User operators
-Simple addition
+You can define any operators. Simple addition
 ```cpp
  ir.addOperator("=", [](string& opd1, string& opd2) ->string {
     opd1 = opd2;
     return opd1;
   }, 100);
 
-  ir.addOperator("+=", [](string& opd1, string& opd2) ->string {
-    if (isNumber(opd1) && isNumber(opd2)){
-      opd1 = to_string(stoi(opd1) + stoi(opd2));
-      return opd1;
-    }     
-    else{
-      opd1 += opd2;
-      return opd1;
-    }
-  }, 100);
+ ir.addOperator("+=", [](string& opd1, string& opd2) ->string {
+   if (isNumber(opd1) && isNumber(opd2)){
+     opd1 = to_string(stoi(opd1) + stoi(opd2));
+     return opd1;
+   }     
+   else{
+     opd1 += opd2;
+     return opd1;
+   }
+ }, 100);
 ```
 Use in script
 ```
@@ -45,7 +45,6 @@ $c += 5;
 
 ## Variables
 Must start with '$'
-
 ```
 $a = 5;
 ```
@@ -59,7 +58,6 @@ Insert a macro with '#'
 ```
 $c = 5; #myMac;
 ```
-
 
 ## Keywords
 
