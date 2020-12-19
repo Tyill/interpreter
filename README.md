@@ -3,7 +3,7 @@ Simple and fast command interpreter.
 Library [one header only](https://github.com/Tyill/interpreter/blob/master/include) and [source file](https://github.com/Tyill/interpreter/blob/master/src).
 
 ### User functions
-You can define any functions. Can be passed as parameters to other functions. 
+You can define any functions. Can be passed as parameters to other functions.  
 Simple addition
 ```cpp
  ir.addFunction("summ", [](const vector<string>& args) ->string {
@@ -51,8 +51,8 @@ $a = 5;
 ```
 
 ### Expressions
-Start with any characters.  Must end with ';'. 
-Parentheses increase the priority of the operation.
+Start with any characters.  Must end with ';'.  
+Parentheses increase the priority of the operation.  
 Can be passed as parameters to functions.
 ```
 $a = 5; $b = 2; $c = $a * (2 + $b);
