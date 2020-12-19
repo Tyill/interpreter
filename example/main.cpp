@@ -105,8 +105,12 @@ int main(int argc, char* argv[])
   });
 
   string scenar = "$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;";
-         
+
   string res = ir.cmd(scenar); // 9
+
+  scenar = "$a = 5; $b = 2; $c = summ($a, ($a + ($a * ($b + $a))), summ(5)); $c;";
+
+  res = ir.cmd(scenar); // 50
 
   return 0;
 }

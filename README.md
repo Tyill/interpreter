@@ -2,7 +2,8 @@
 Simple and fast command interpreter.  
 Library [one header only](https://github.com/Tyill/interpreter/blob/master/include) and [source file](https://github.com/Tyill/interpreter/blob/master/src).
 
-## User functions
+### User functions
+You can define any functions. Can be passed as parameters to other functions. 
 Simple addition
 ```cpp
  ir.addFunction("summ", [](const vector<string>& args) ->string {
@@ -15,10 +16,10 @@ Simple addition
 ```
 Use in script
 ```
-$c = 5; $d = $c + 5; summ($c, $d, 6);
+$c = 5; $d = $c + 5; summ($c, $d,  summ(6 + 5, 3));
 ```
 
-## User operators
+### User operators
 You can define any operators. Simple addition
 ```cpp
  ir.addOperator("=", [](string& opd1, string& opd2) ->string {
@@ -43,13 +44,22 @@ $c = 5;
 $c += 5;
 ```
 
-## Variables
+### Variables
 Must start with '$'
 ```
 $a = 5;
 ```
 
-## Macros
+### Expressions
+Start with any characters.  Must end with ';'. 
+Parentheses increase the priority of the operation.
+Can be passed as parameters to functions.
+```
+$a = 5; $b = 2; $c = $a * (2 + $b);
+$d = summ($a, $b, $c + 3, 4);
+```
+
+### Macros
 Macro declaration with '#macro name {body}'
 ```
 #macro myMac{ $c = 5; $d = $c + 5 + 6; } ;
@@ -59,7 +69,7 @@ Insert a macro with '#'
 $c = 5; #myMac;
 ```
 
-## Keywords
+### Keywords
 
 |                          |                                                   |
 |--------------------------|---------------------------------------------------|
@@ -70,7 +80,7 @@ $c = 5; #myMac;
 |`break;`                  | Aborts the execution of the loop                  |
 |`continue;`               | Continues the cycle                               |
 
-## Example of use
+### Example of use
 
 ```cpp
 
@@ -101,7 +111,7 @@ int main(int argc, char* argv[])
 
   ir.addOperator("/", [](string& opd1, string& opd2) ->string {
     if (isNumber(opd1) && isNumber(opd2))
-      return to_string(stoi(opd1) * stoi(opd2));
+      return to_string(stoi(opd1) / stoi(opd2));
     else
       return "0";
   }, 0);
@@ -159,13 +169,17 @@ int main(int argc, char* argv[])
          
   string res = ir.cmd(scenar); // 9
 
+  scenar = "$a = 5; $b = 2; $c = summ($a, ($a + ($a * ($b + $a))), summ(5)); $c;";
+  
+  res = ir.cmd(scenar); // 50
+
   return 0;
 }
 ```
 
-## [Tests](https://github.com/Tyill/interpreter/blob/master/src/test.cpp)
+### [Tests](https://github.com/Tyill/interpreter/blob/master/src/test.cpp)
 
 
-## License
+### License
 Licensed under an [MIT-2.0]-[license](LICENSE).
 
