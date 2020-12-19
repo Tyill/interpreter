@@ -22,9 +22,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 //
-
+#include <gtest/gtest.h>
 #include "../include/interpreter.h"
-#include <cctype>
 
 using namespace std;
 
@@ -37,10 +36,10 @@ bool isNumber(const string& s) {
   return !s.empty();
 }
 
-int main(int argc, char* argv[])
-{  
-  Interpreter ir;
-
+class InprTest : public ::testing::Test {
+public:
+  InprTest() {     
+  
   ir.addOperator("*", [](string& opd1, string& opd2) ->string {
     if (isNumber(opd1) && isNumber(opd2))
       return to_string(stoi(opd1) * stoi(opd2));
@@ -90,6 +89,17 @@ int main(int argc, char* argv[])
     else
       return opd1.size() < opd2.size() ? "1" : "0";
   }, 2);
+
+  ir.addOperator("+=", [](string& opd1, string& opd2) ->string {
+    if (isNumber(opd1) && isNumber(opd2)){
+      opd1 = to_string(stoi(opd1) + stoi(opd2));
+      return opd1;
+    }     
+    else{
+      opd1 += opd2;
+      return opd1;
+    }
+  }, 100);
    
   ir.addOperator("=", [](string& opd1, string& opd2) ->string {
     opd1 = opd2;
@@ -103,11 +113,42 @@ int main(int argc, char* argv[])
     }
     return to_string(res);
   });
+  }
+  ~InprTest() {   
+  }
+  Interpreter ir;
+};
 
-  string scenar = "$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;";
-         
-  string res = ir.cmd(scenar); // 9
-
-  return 0;
+TEST_F(InprTest, test1){   
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a + $b;") == "7");
+}
+TEST_F(InprTest, test2){   
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a + $b;") != "6");
+}
+TEST_F(InprTest, test3){  
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; summ($a, $b);") == "7");
+}
+TEST_F(InprTest, test4){  
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a*2 + $b;") == "12");
+}
+TEST_F(InprTest, test5){  
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a / 2 + $b;") == "4");
+}
+TEST_F(InprTest, test6){  
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; if ($a > 3){ $b = 1;} $b;") == "1");
+}
+TEST_F(InprTest, test7){  
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; if ($a < 4){ $b = 1;} else {$b = 3;} $b;") == "3");
+}
+TEST_F(InprTest, test8){  
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;") == "9");
+}
+TEST_F(InprTest, test9){  
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $b += $a; $b;") == "7");
 }
 
+int main(int argc, char* argv[]){
+ 
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

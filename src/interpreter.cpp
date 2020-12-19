@@ -272,6 +272,8 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
               if (m_expr[iExpr].keyw != Keyword::WHILE)
                 g_result = "continue";              
             }
+            break;           
+            default:
             break;
           }  
           if (isContinue || isBreak) i = iBodyEnd;
@@ -293,6 +295,8 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
         }
       }
     }
+    break;
+    default:
     break;
   }
   return g_result;
@@ -563,6 +567,8 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
         ++cp;
       }
     }
+    break;
+    default:
     break;
   } 
   return true;
