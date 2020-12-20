@@ -80,6 +80,7 @@ private:
   string getNextParam(const string& scenar, size_t& cpos, char symb);  
   string getOperatorAtFirst(const string& scenar, size_t& cpos);
   string getFunctionAtFirst(const string& scenar, size_t& cpos);
+  string getMacroAtFirst(const string& scenar, size_t& cpos);
   string getNextOperator(const string& scenar, size_t& cpos);
   string getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd);
   bool isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos);
@@ -577,6 +578,18 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
 
           if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;          
         }
+        else if (scenar[cpos] == '#'){
+          const string mname = getMacroAtFirst(scenar, cpos);
+          CHECK(mname.empty() || (m_macro.find(mname) == m_macro.end()));
+
+          m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
+
+          CHECK(!parseScenar(m_macro[mname], Keyword::EXPRESSION, gpos + cpos - mname.size()));
+
+          iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+
+          if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+        }
         else if (!(oprName = getOperatorAtFirst(scenar, cpos)).empty()) {
           CHECK(m_uoper.find(oprName) == m_uoper.end());
 
@@ -684,6 +697,17 @@ string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) {
   }
   cpos += fName.size();
   return fName;
+}
+string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) {
+  string mName = "";
+  for (const auto& m : m_macro) {
+    if (startWith(scenar, cpos, m.first)){
+      mName = m.first;
+      break;
+    }
+  }
+  cpos += mName.size();
+  return mName;
 }
 string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd){
   size_t ssz = scenar.size(),
