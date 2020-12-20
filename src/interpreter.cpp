@@ -109,6 +109,8 @@ string InterpreterImpl::cmd(string scenar) {
   if (scenar.empty())
     return "Error: empty scenar";
 
+  if (scenar.back() != ';') scenar += ';';
+
   if (m_prevScenar != scenar){
     m_expr.clear();
     if (!checkScenar(scenar) || !parseScenar(scenar, Keyword::SEQUENCE, 0)) {
@@ -288,7 +290,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
             for (size_t i = iBegin; i < iCondEnd; ++i)
               m_expr[i].iOperator = size_t(-1);
 
-            condn = calcExpression(iBegin, iCondEnd);
+            string condn = calcExpression(iBegin, iCondEnd);
             if ((isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
               for (size_t i = iCondEnd; i < iBodyEnd; ++i)
                 m_expr[i].iOperator = size_t(-1);
@@ -359,8 +361,8 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
       }
       if (oprs[2].priority < oprs[1].priority) swap(oprs[1], oprs[2]);
     }
-    else { // faster than std::sort on small distance
-      for (size_t i = 0; i < osz - 1; ++i){
+    else if (osz < 10) { // faster than std::sort on small distance
+      for (size_t i = 0; i < osz - 2; ++i){
         size_t iMin = i;
         int minPriort = oprs[i].priority;
         for (size_t j = i + 1; j < osz; ++j){
@@ -371,6 +373,12 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
         }
         if (iMin != i) swap(oprs[i], oprs[iMin]);
       }
+      if (oprs[osz - 2].priority > oprs[osz - 1].priority) swap(oprs[osz - 2], oprs[osz - 1]);
+    }
+    else {
+      sort(oprs.begin(), oprs.end(), [](const Opr& l, const Opr& r) {
+        return l.priority < r.priority;
+      });
     }
   }
 
@@ -410,7 +418,7 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
             ex.iOperator = iOp;
         }
       }
-      pLeftOperd->iOperator = iOp;
+      else pLeftOperd->iOperator = iOp;
     }
     if (pRightOperd){
       if (pRightOperd->iOperator != size_t(-1)){
@@ -420,7 +428,7 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
             ex.iOperator = iOp;
         }
       }
-      pRightOperd->iOperator = iOp;
+      else pRightOperd->iOperator = iOp;
     }
   }
   return g_result;
