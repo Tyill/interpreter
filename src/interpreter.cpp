@@ -63,11 +63,15 @@ private:
     string params;
     string result;
   };
+  struct Operatr{
+    size_t inx, priority, iLOpr, iROpr;
+  };
   map<string, Interpreter::UserFunction> m_ufunc;
   map<string, pair<Interpreter::UserOperator, uint32_t>> m_uoper; // operator, priority
   map<string, string> m_var;
   map<string, string> m_macro;
-  vector<Expression> m_expr;
+  map<size_t, vector<Operatr>> m_soper;
+  vector<Expression> m_expr;  
   string m_err, m_prevScenar, m_result;
 
   vector<string> split(const string& str, char sep);
@@ -113,7 +117,9 @@ string InterpreterImpl::cmd(string scenar) {
   if (scenar.back() != ';') scenar += ';';
 
   if (m_prevScenar != scenar){
+    m_prevScenar.clear();
     m_expr.clear();
+    m_soper.clear();
     if (!checkScenar(scenar) || !parseScenar(scenar, Keyword::SEQUENCE, 0)) {
       return m_err;
     }
@@ -232,7 +238,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
       size_t iCondEnd = m_expr[iExpr].iConditionEnd;
       size_t iBodyEnd = m_expr[iExpr].iBodyEnd;
       if ((m_expr[iExpr].keyw == Keyword::ELSE) || (m_expr[iExpr].keyw == Keyword::ELSE_IF)) {
-        size_t iIF = stoull(m_expr[iExpr].params);
+        size_t iIF = stoul(m_expr[iExpr].params);
         if (iIF != size_t(-1)) {
           string ifCondn = m_expr[iIF].result;
           if ((isNumber(ifCondn) && (stoi(ifCondn) != 0)) || (!isNumber(ifCondn) && !ifCondn.empty())) {
@@ -288,13 +294,13 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
             isContinue = false;
             if (isBreak) break;
 
-            for (size_t i = iBegin; i < iCondEnd; ++i)
-              m_expr[i].iOperator = size_t(-1);
+            for (size_t j = iBegin; j < iCondEnd; ++j)
+              m_expr[j].iOperator = size_t(-1);
 
             string condn = calcExpression(iBegin, iCondEnd);
             if ((isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
-              for (size_t i = iCondEnd; i < iBodyEnd; ++i)
-                m_expr[i].iOperator = size_t(-1);
+              for (size_t j = iCondEnd; j < iBodyEnd; ++j)
+                m_expr[j].iOperator = size_t(-1);
               i = iCondEnd;
             }            
           }           
@@ -316,71 +322,73 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
       return m_expr[iBegin].params;
     return calcOperation(m_expr[iBegin].keyw, iBegin);
   }
+  
+  bool firstRun = m_soper.find(iBegin) == m_soper.end();
+  if (firstRun)
+    m_soper.insert({ iBegin, vector<Operatr>() });
 
-  struct Opr{
-    size_t inx, priority, iLOpr, iROpr;
-  };
-    
-  vector<Opr> oprs;
-  size_t iLOpr = size_t(-1);
-  for (size_t i = iBegin; i < iEnd;) {   
-    if (m_expr[i].keyw == Keyword::FUNCTION) {
+  vector<Operatr>& oprs = m_soper[iBegin];
+  if (firstRun){
+    size_t iLOpr = size_t(-1);
+    for (size_t i = iBegin; i < iEnd;) {
+      if (m_expr[i].keyw == Keyword::FUNCTION) {
+        iLOpr = i;
+        i = m_expr[i].iConditionEnd;
+        continue;
+      }
+      if (m_expr[i].keyw == Keyword::EXPRESSION) {
+        iLOpr = i;
+        i = m_expr[i].iBodyEnd;
+        continue;
+      }
+      if (m_expr[i].keyw == Keyword::OPERATOR) {
+        uint32_t priority = m_uoper[m_expr[i].params].second;
+        size_t iROpr = (i < iEnd - 1) ? i + 1 : size_t(-1);
+        oprs.emplace_back<Operatr>({ i, priority, iLOpr, iROpr });  // inx, priority
+      }
       iLOpr = i;
-      i = m_expr[i].iConditionEnd;
-      continue;
+      ++i;
     }
-    if (m_expr[i].keyw == Keyword::EXPRESSION) {
-      iLOpr = i;
-      i = m_expr[i].iBodyEnd;
-      continue;
-    }
-    if (m_expr[i].keyw == Keyword::OPERATOR) {
-      uint32_t priority = m_uoper[m_expr[i].params].second;     
-      size_t iROpr = (i < iEnd - 1) ? i + 1 : size_t(-1);
-      oprs.emplace_back<Opr>({ i, priority, iLOpr, iROpr });  // inx, priority
-    }
-    iLOpr = i;
-    ++i;
-  }
- 
-  size_t osz = oprs.size();
-  if (osz == 0){
-    return calcOperation(m_expr[iBegin].keyw, iBegin);
-  }
 
-  if (osz > 1){
-    if (osz == 2){
-      if (oprs[0].priority > oprs[1].priority) swap(oprs[0], oprs[1]);
-    }
-    else if (osz == 3){
-      if (oprs[0].priority < oprs[1].priority){
-        if (oprs[2].priority < oprs[0].priority) swap(oprs[0], oprs[2]);
+    size_t osz = oprs.size();
+    if (osz > 1){
+      if (osz == 2){
+        if (oprs[0].priority > oprs[1].priority) swap(oprs[0], oprs[1]);
+      }
+      else if (osz == 3){
+        if (oprs[0].priority < oprs[1].priority){
+          if (oprs[2].priority < oprs[0].priority) swap(oprs[0], oprs[2]);
+        }
+        else {
+          if (oprs[1].priority < oprs[2].priority) swap(oprs[0], oprs[1]);
+          else swap(oprs[0], oprs[2]);
+        }
+        if (oprs[2].priority < oprs[1].priority) swap(oprs[1], oprs[2]);
+      }
+      else if (osz < 10) { // faster than std::sort on small distance
+        for (size_t i = 0; i < osz - 2; ++i){
+          size_t iMin = i;
+          size_t minPriort = oprs[i].priority;
+          for (size_t j = i + 1; j < osz; ++j){
+            if (oprs[j].priority < minPriort){
+              minPriort = oprs[j].priority;
+              iMin = j;
+            }
+          }
+          if (iMin != i) swap(oprs[i], oprs[iMin]);
+        }
+        if (oprs[osz - 2].priority > oprs[osz - 1].priority) swap(oprs[osz - 2], oprs[osz - 1]);
       }
       else {
-        if (oprs[1].priority < oprs[2].priority) swap(oprs[0], oprs[1]);
-        else swap(oprs[0], oprs[2]);
+        sort(oprs.begin(), oprs.end(), [](const Operatr& l, const Operatr& r) {
+          return l.priority < r.priority;
+        });
       }
-      if (oprs[2].priority < oprs[1].priority) swap(oprs[1], oprs[2]);
     }
-    else if (osz < 10) { // faster than std::sort on small distance
-      for (size_t i = 0; i < osz - 2; ++i){
-        size_t iMin = i;
-        int minPriort = oprs[i].priority;
-        for (size_t j = i + 1; j < osz; ++j){
-          if (oprs[j].priority < minPriort){
-            minPriort = oprs[j].priority;
-            iMin = j;
-          }
-        }
-        if (iMin != i) swap(oprs[i], oprs[iMin]);
-      }
-      if (oprs[osz - 2].priority > oprs[osz - 1].priority) swap(oprs[osz - 2], oprs[osz - 1]);
-    }
-    else {
-      sort(oprs.begin(), oprs.end(), [](const Opr& l, const Opr& r) {
-        return l.priority < r.priority;
-      });
-    }
+  }
+
+  if (oprs.empty()){
+    return calcOperation(m_expr[iBegin].keyw, iBegin);
   }
 
   string g_result;
