@@ -74,7 +74,6 @@ private:
   vector<Expression> m_expr;  
   string m_err, m_prevScenar, m_result;
 
-  vector<string> split(const string& str, char sep);
   bool startWith(const string& str, size_t pos, const string& begin);
   bool isNumber(const string& s);
 
@@ -174,15 +173,6 @@ bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator 
   return true;
 }
 
-vector<string> InterpreterImpl::split(const string& str, char sep) {
-  vector<string> res;
-  istringstream iss(str);
-  string token;
-  while (getline(iss, token, sep)){
-    res.emplace_back(token);
-  }
-  return res;
-}
 bool InterpreterImpl::startWith(const string& str, size_t pos, const string& begin){
   return (str.find(begin, pos) - pos) == 0;
 }
