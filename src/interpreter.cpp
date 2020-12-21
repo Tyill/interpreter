@@ -495,21 +495,26 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
           const string kname = getNextParam(scenar, cpos, ';');
           CHECK(kname.empty());
           const Keyword keyw = keywordByName(kname);
-          m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });
+
+          m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });          
           ++iExpr;
         }
         else if (startWith(scenar, cpos, "#macro")) {  // macro declaration
           cpos += 6;
           const string mname = getNextParam(scenar, cpos, '{');
+          
           cpos -= 1;
           const string mvalue = getIntroScenar(scenar, cpos, '{', '}');
           CHECK(mname.empty() || mvalue.empty());
+          
           m_macro.insert({ "#" + mname, mvalue });
+          
           if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
         }
         else if (scenar[cpos] == '#') {               // macro definition
           const string mname = getNextParam(scenar, cpos, ';');
           CHECK(mname.empty() || (m_macro.find(mname) == m_macro.end()));
+          
           CHECK(!parseScenar(m_macro[mname], Keyword::SEQUENCE, gpos + cpos - mname.size() - 1));
           iExpr = m_expr.size();
         }       
@@ -580,12 +585,10 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
         else if (scenar[cpos] == '#'){
           const string mname = getMacroAtFirst(scenar, cpos);
           CHECK(mname.empty() || (m_macro.find(mname) == m_macro.end()));
-
-          m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
-
+                   
           CHECK(!parseScenar(m_macro[mname], Keyword::EXPRESSION, gpos + cpos - mname.size()));
 
-          iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+          iExpr = m_expr.size();
 
           if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
         }
