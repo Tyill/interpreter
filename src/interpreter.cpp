@@ -302,6 +302,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
               for (size_t j = iCondEnd; j < iBodyEnd; ++j)
                 m_expr[j].iOperator = size_t(-1);
               i = iCondEnd;
+              g_result.clear();
             }            
           }           
         }
