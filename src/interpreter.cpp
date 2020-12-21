@@ -388,7 +388,7 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
     }
   }
 
-  if (oprs.empty()){
+  if (oprs.empty()){   
     return calcOperation(m_expr[iBegin].keyw, iBegin);
   }
 
@@ -400,15 +400,27 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
     string lValue, rValue;
     if (op.iLOpr != size_t(-1)) { // left operand
       pLeftOperd = &m_expr[op.iLOpr];
-      if (pLeftOperd->iOperator == size_t(-1))
-        lValue = calcOperation(pLeftOperd->keyw, op.iLOpr);
+      if (pLeftOperd->iOperator == size_t(-1)) {
+        if (pLeftOperd->keyw == Keyword::VARIABLE)
+          lValue = m_var[m_expr[op.iLOpr].params];
+        else if (pLeftOperd->keyw == Keyword::VALUE)
+          lValue = m_expr[op.iLOpr].params;
+        else
+          lValue = calcOperation(pLeftOperd->keyw, op.iLOpr);
+      }
       else
         lValue = m_expr[pLeftOperd->iOperator].result;
     }
     if (op.iROpr != size_t(-1)) { // right operand
       pRightOperd = &m_expr[op.iROpr];
-      if (pRightOperd->iOperator == size_t(-1))
-        rValue = calcOperation(pRightOperd->keyw, op.iROpr);
+      if (pRightOperd->iOperator == size_t(-1)) {
+        if (pRightOperd->keyw == Keyword::VARIABLE)
+          rValue = m_var[m_expr[op.iROpr].params];
+        else if (pRightOperd->keyw == Keyword::VALUE)
+          rValue = m_expr[op.iROpr].params;
+        else
+          rValue = calcOperation(pRightOperd->keyw, op.iROpr);
+      }
       else
         rValue = m_expr[pRightOperd->iOperator].result;
     }
