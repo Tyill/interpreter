@@ -73,22 +73,21 @@ private:
   map<size_t, vector<Operatr>> m_soper;
   vector<Expression> m_expr;  
   string m_err, m_prevScenar, m_result;
-
-  bool startWith(const string& str, size_t pos, const string& begin);
-  bool isNumber(const string& s);
-
+   
   string calcOperation(Keyword mainKeyword, size_t iExpr);
-  string calcExpression(size_t iBegin, size_t iEnd);
-  Keyword keywordByName(const string& oprName);  
-  string getNextParam(const string& scenar, size_t& cpos, char symb);  
-  string getOperatorAtFirst(const string& scenar, size_t& cpos);
-  string getFunctionAtFirst(const string& scenar, size_t& cpos);
-  string getMacroAtFirst(const string& scenar, size_t& cpos);
-  string getNextOperator(const string& scenar, size_t& cpos);
-  string getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd);
-  bool isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos);
+  string calcExpression(size_t iBegin, size_t iEnd);  
   bool parseScenar(const string& scenar, Keyword mainKeyword, size_t gpos);
-  bool checkScenar(const string& scenar);
+  bool checkScenar(const string& scenar, string& err) const;
+  bool startWith(const string& str, size_t pos, const string& begin) const;
+  bool isNumber(const string& s) const;
+  bool isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos) const;
+  Keyword keywordByName(const string& oprName) const;
+  string getNextParam(const string& scenar, size_t& cpos, char symb) const;
+  string getOperatorAtFirst(const string& scenar, size_t& cpos) const;
+  string getFunctionAtFirst(const string& scenar, size_t& cpos) const;
+  string getMacroAtFirst(const string& scenar, size_t& cpos) const;
+  string getNextOperator(const string& scenar, size_t& cpos) const;
+  string getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd) const;
 };
 
 string InterpreterImpl::cmd(string scenar) {
@@ -119,7 +118,8 @@ string InterpreterImpl::cmd(string scenar) {
     m_prevScenar.clear();
     m_expr.clear();
     m_soper.clear();
-    if (!checkScenar(scenar) || !parseScenar(scenar, Keyword::SEQUENCE, 0)) {
+    m_err.clear();
+    if (!checkScenar(scenar, m_err) || !parseScenar(scenar, Keyword::SEQUENCE, 0)) {
       return m_err;
     }
     m_prevScenar = scenar;
@@ -136,11 +136,11 @@ string InterpreterImpl::cmd(string scenar) {
   return m_result;
 }
 
-bool InterpreterImpl::checkScenar(const string& scenar) {
+bool InterpreterImpl::checkScenar(const string& scenar, string& err) const{
 
 #define CHECK(condition)                                                    \
   if (condition){                                                           \
-    if (m_err.empty()) m_err = "Error check scenar: " + string(#condition); \
+    if (err.empty()) err = "Error check scenar: " + string(#condition); \
     return false;                                                           \
   }  
 
@@ -171,18 +171,6 @@ bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator 
   if (name.empty() || (keywordByName(name) != Keyword::SEQUENCE) || isFindKeySymbol(name, 0, name.size())) return false;
   m_uoper.insert({ name, {move(uopr), priority} });
   return true;
-}
-
-bool InterpreterImpl::startWith(const string& str, size_t pos, const string& begin){
-  return (str.find(begin, pos) - pos) == 0;
-}
-bool InterpreterImpl::isNumber(const string& s) {
-  for (auto c : s) {
-    if (!std::isdigit(c)) {
-      return false;
-    }
-  }
-  return !s.empty();
 }
 
 string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
@@ -662,7 +650,7 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
   } 
   return true;
 }
-string InterpreterImpl::getNextParam(const string& scenar, size_t& cpos, char symb) {
+string InterpreterImpl::getNextParam(const string& scenar, size_t& cpos, char symb) const {
   size_t pos = scenar.find(symb, cpos);
   string res = "";
   if (pos != string::npos) {
@@ -671,7 +659,7 @@ string InterpreterImpl::getNextParam(const string& scenar, size_t& cpos, char sy
   }
   return res;
 }
-string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) {
+string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) const {
   size_t minp = string::npos;
   string opr = "";
   for (const auto& op : m_uoper) {
@@ -687,7 +675,7 @@ string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) {
   }
   return opr;
 }
-string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) {
+string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) const {
   string opr = "";
   for (const auto& op : m_uoper) {
     if (startWith(scenar, cpos, op.first)){      
@@ -698,7 +686,7 @@ string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) {
   cpos += opr.size();
   return opr;
 }
-string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) {
+string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) const {
   string fName = "";
   for (const auto& f : m_ufunc) {
     if (startWith(scenar, cpos, f.first)){
@@ -709,7 +697,7 @@ string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) {
   cpos += fName.size();
   return fName;
 }
-string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) {
+string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) const {
   string mName = "";
   for (const auto& m : m_macro) {
     if (startWith(scenar, cpos, m.first)){
@@ -720,7 +708,7 @@ string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) {
   cpos += mName.size();
   return mName;
 }
-string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd){
+string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd) const {
   size_t ssz = scenar.size(),
          cp = cpos;
   int bordCnt = 0;
@@ -737,7 +725,7 @@ string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char 
   }  
   return res;
 }
-bool InterpreterImpl::isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos){
+bool InterpreterImpl::isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos) const {
   return (scenar.find('(', cpos) < maxpos) ||
          (scenar.find(')', cpos) < maxpos) ||
          (scenar.find('{', cpos) < maxpos) ||
@@ -747,7 +735,18 @@ bool InterpreterImpl::isFindKeySymbol(const string& scenar, size_t cpos, size_t 
          (scenar.find('#', cpos) < maxpos) ||
          (scenar.find('$', cpos) < maxpos);
 }
-InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) {
+bool InterpreterImpl::startWith(const string& str, size_t pos, const string& begin) const {
+  return (str.find(begin, pos) - pos) == 0;
+}
+bool InterpreterImpl::isNumber(const string& s) const {
+  for (auto c : s) {
+    if (!std::isdigit(c)) {
+      return false;
+    }
+  }
+  return !s.empty();
+}
+InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) const {
   Keyword nextOpr = Keyword::SEQUENCE;
   if (oprName == "if") nextOpr = Keyword::IF;
   else if (oprName == "else") nextOpr = Keyword::ELSE;
