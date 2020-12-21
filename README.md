@@ -2,6 +2,22 @@
 Simple and fast command interpreter.  
 Library [one header only](https://github.com/Tyill/interpreter/blob/master/include) and [source file](https://github.com/Tyill/interpreter/blob/master/src).
 
+Example:
+```cpp
+stringstream ss;
+ss << "$a = 5;"
+      "$b = 2;"
+      "while($a > 1){"
+      "  $a -= 1;"
+      "  $b = summ($b, $a);"
+      "  if($a < 4){"
+      "    break;"
+      "  }"
+      "}"
+      "$b";
+string res = ir.cmd(ss.str()); // 9
+```
+
 ### User functions
 You can define any functions. Can be passed as parameters to other functions.  
 Simple addition
