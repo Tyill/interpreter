@@ -457,9 +457,9 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
     if (pLeftOperd){
       if (pLeftOperd->iOperator != size_t(-1)){
         size_t iLOp = pLeftOperd->iOperator;
-        for (auto& ex : m_expr){
-          if (ex.iOperator == iLOp)
-            ex.iOperator = iOp;
+        for (size_t i = iBegin; i < iEnd; ++i){
+          if (m_expr[i].iOperator == iLOp)
+            m_expr[i].iOperator = iOp;
         }
       }
       else pLeftOperd->iOperator = iOp;
@@ -467,9 +467,9 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
     if (pRightOperd){
       if (pRightOperd->iOperator != size_t(-1)){
         size_t iROp = pRightOperd->iOperator;
-        for (auto& ex : m_expr){
-          if (ex.iOperator == iROp)
-            ex.iOperator = iOp;
+        for (size_t i = iBegin; i < iEnd; ++i){
+          if (m_expr[i].iOperator == iROp)
+            m_expr[i].iOperator = iOp;
         }
       }
       else pRightOperd->iOperator = iOp;
