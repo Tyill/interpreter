@@ -27,6 +27,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include <functional>
 #include <cstdint>
 
@@ -35,7 +36,7 @@ class Interpreter {
 
 public:
   using UserFunction = std::function<std::string(const std::vector<std::string>& args)>;
-  using UserOperator = std::function<std::string(std::string& ioOperandOne, std::string& ioOperandTwo)>;
+  using UserOperator = std::function<std::string(std::string& ioLeftOperand, std::string& ioRightOperand)>;
 
   explicit 
   Interpreter();
@@ -44,13 +45,44 @@ public:
   Interpreter(const Interpreter&) = delete;
   Interpreter& operator=(const Interpreter&) = delete;
 
+  /// Add function
+  /// @param name
+  /// @param ufunc function
+  /// return true - ok
   bool addFunction(const std::string& name, UserFunction ufunc);
 
+  /// Add operator
+  /// @param name
+  /// @param uopr operator
+  /// @param priority
+  /// return true - ok
   bool addOperator(const std::string& name, UserOperator uopr, uint32_t priority);
-    
-  /// return result or error
-  std::string cmd(std::string scenar);
+   
+  /// Execute script
+  /// @param script
+  /// @return result or error
+  std::string cmd(std::string script);
 
+  /// All variables
+  /// @return vname, value
+  std::map<std::string, std::string> allVariables() const;
+
+  /// Value of variable
+  /// @param vname
+  /// @return value
+  std::string variableValue(const std::string& vname) const;
+
+  /// Set value of variable
+  /// @param vname
+  /// @param value
+  /// @return true - ok
+  bool setVariableValue(const std::string& vname, const std::string& value);
+
+  /// Go-to on label
+  /// @param lname label name
+  /// @return true - ok
+  bool onGoto(const std::string& lname);
+  
 private:
   InterpreterImpl* m_d = nullptr;
 };

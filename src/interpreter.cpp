@@ -37,7 +37,10 @@ public:
   bool addFunction(const string& name, Interpreter::UserFunction ufunc);
   bool addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority);
   string cmd(string scenar);
- 
+  std::map<std::string, std::string> allVariables() const;
+  std::string variableValue(const std::string& vname) const;
+  bool setVariableValue(const std::string& vname, const std::string& value);
+  bool onGoto(const std::string& lname);
 private:
   enum class Keyword{
     SEQUENCE,
@@ -54,6 +57,7 @@ private:
     MACRO,
     VARIABLE,
     VALUE,
+    GOTO,
   }; 
   struct Expression{    
     Keyword keyw;
@@ -70,9 +74,11 @@ private:
   map<string, pair<Interpreter::UserOperator, uint32_t>> m_uoper; // operator, priority
   map<string, string> m_var;
   map<string, string> m_macro;
+  map<string, size_t> m_label;
   map<size_t, vector<Operatr>> m_soper;
   vector<Expression> m_expr;  
   string m_err, m_prevScenar, m_result;
+  size_t m_igoto = size_t(-1);
    
   string calcOperation(Keyword mainKeyword, size_t iExpr);
   string calcExpression(size_t iBegin, size_t iEnd);  
@@ -128,10 +134,18 @@ string InterpreterImpl::cmd(string scenar) {
     for (auto& ex : m_expr)
       ex.iOperator = size_t(-1);
   }
-
+   
   for (size_t i = 0; i < m_expr.size();) {
     m_result = calcOperation(m_expr[i].keyw, i);
+
     i = max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
+
+    if (m_igoto != size_t(-1)){
+      for (size_t j = m_igoto; j < i; ++j)
+        m_expr[j].iOperator = size_t(-1);    
+      i = m_igoto;
+      m_igoto = size_t(-1);
+    }
   }
   return m_result;
 }
@@ -171,6 +185,25 @@ bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator 
   if (name.empty() || (keywordByName(name) != Keyword::SEQUENCE) || isFindKeySymbol(name, 0, name.size())) return false;
   m_uoper.insert({ name, {move(uopr), priority} });
   return true;
+}
+
+std::map<std::string, std::string> InterpreterImpl::allVariables() const {
+  return m_var;
+}
+std::string InterpreterImpl::variableValue(const std::string& vname) const {
+  return m_var.find(vname) != m_var.end() ? m_var.at(vname) : "";
+}
+bool InterpreterImpl::setVariableValue(const std::string& vname, const std::string& value) {
+  bool exist = m_var.find(vname) != m_var.end();
+  if (exist)
+    m_var[vname] = value;
+  return exist;
+}
+bool InterpreterImpl::onGoto(const std::string& lname) {
+  bool exist = m_label.find(lname) != m_label.end();
+  if (exist)
+    m_igoto = m_label[lname];
+  return exist;
 }
 
 string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
@@ -262,15 +295,21 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
               if (m_expr[iExpr].keyw != Keyword::WHILE)
                 g_result = "continue";              
             }
-            break;           
+            break;  
+            case Keyword::GOTO: {
+              if (m_label.find(m_expr[i].params) != m_label.end()) {
+                m_igoto = m_label[m_expr[i].params];
+              }
+            }
+            break;
             default:
             break;
           }  
-          if (isContinue || isBreak) i = iBodyEnd;
+          if (isBreak || (m_igoto != size_t(-1))) break;
+          if (isContinue) i = iBodyEnd;
 
           if ((m_expr[iExpr].keyw == Keyword::WHILE) && (i >= iBodyEnd)){
-            isContinue = false;
-            if (isBreak) break;
+            isContinue = false;            
 
             for (size_t j = iBegin; j < iCondEnd; ++j)
               m_expr[j].iOperator = size_t(-1);
@@ -285,6 +324,11 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
           }           
         }
       }
+    }
+    break;
+    case Keyword::GOTO: {
+      if (m_label.find(m_expr[iExpr].params) != m_label.end())
+        m_igoto = m_label[m_expr[iExpr].params];
     }
     break;
     default:
@@ -517,7 +561,24 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
           
           CHECK(!parseScenar(m_macro[mname], Keyword::SEQUENCE, gpos + cpos - mname.size() - 1));
           iExpr = m_expr.size();
-        }       
+        }     
+        else if (startWith(scenar, cpos, "goto")) {  
+            cpos += 4;
+            const string lname = getNextParam(scenar, cpos, ';');
+            CHECK(lname.empty());
+
+            if (m_label.find(lname) == m_label.end())
+                m_label.insert({ lname, size_t(-1) });
+
+            m_expr.emplace_back<Expression>({ Keyword::GOTO, iExpr, iExpr, size_t(-1), lname });
+            ++iExpr;
+        }
+        else if (startWith(scenar, cpos, "l_")) {  
+            const string lname = getNextParam(scenar, cpos, ':');
+            CHECK(lname.empty());
+                        
+            m_label[lname] = iExpr;
+        }
         else {
           m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
 
@@ -756,6 +817,7 @@ InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) c
   else if (oprName == "elseif") nextOpr = Keyword::ELSE_IF;
   else if (oprName == "while") nextOpr = Keyword::WHILE;
   else if (oprName == "break") nextOpr = Keyword::BREAK;
+  else if (oprName == "goto") nextOpr = Keyword::GOTO;
   else if (oprName == "#macro") nextOpr = Keyword::MACRO;
   else if (oprName == "continue") nextOpr = Keyword::CONTINUE;
   return nextOpr;
@@ -775,4 +837,20 @@ bool Interpreter::addFunction(const string& name, UserFunction ufunc){
 }
 bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t priority){
   return m_d->addOperator(name, uoper, priority);
+}
+
+std::map<std::string, std::string> Interpreter::allVariables() const {
+  return m_d->allVariables();
+}
+
+std::string Interpreter::variableValue(const std::string& vname) const {
+  return m_d->variableValue(vname);
+}
+
+bool Interpreter::setVariableValue(const std::string& vname, const std::string& value) {
+  return m_d->setVariableValue(vname, value);
+}
+
+bool Interpreter::onGoto(const std::string& lname) {
+  return m_d->onGoto(lname);
 }

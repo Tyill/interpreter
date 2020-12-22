@@ -43,14 +43,14 @@ You can define any operators. Simple addition
     return opd1;
   }, 100);
 
- ir.addOperator("+=", [](string& opd1, string& opd2) ->string {
-   if (isNumber(opd1) && isNumber(opd2)){
-     opd1 = to_string(stoi(opd1) + stoi(opd2));
-     return opd1;
+ ir.addOperator("+=", [](string& leftOpd, string& rightOpd) ->string {
+   if (isNumber(leftOpd) && isNumber(rightOpd)){
+     leftOpd = to_string(stoi(leftOpd) + stoi(rightOpd));
+     return leftOpd;
    }     
    else{
-     opd1 += opd2;
-     return opd1;
+     leftOpd += rightOpd;
+     return leftOpd;
    }
  }, 100);
 ```
@@ -118,59 +118,59 @@ int main(int argc, char* argv[])
 {  
   Interpreter ir;
 
-  ir.addOperator("*", [](string& opd1, string& opd2) ->string {
-    if (isNumber(opd1) && isNumber(opd2))
-      return to_string(stoi(opd1) * stoi(opd2));
+  ir.addOperator("*", [](string& leftOpd, string& rightOpd) ->string {
+    if (isNumber(leftOpd) && isNumber(rightOpd))
+      return to_string(stoi(leftOpd) * stoi(rightOpd));
     else
       return "0";
   }, 0);
 
-  ir.addOperator("/", [](string& opd1, string& opd2) ->string {
-    if (isNumber(opd1) && isNumber(opd2))
-      return to_string(stoi(opd1) / stoi(opd2));
+  ir.addOperator("/", [](string& leftOpd, string& rightOpd) ->string {
+    if (isNumber(leftOpd) && isNumber(rightOpd))
+      return to_string(stoi(leftOpd) / stoi(rightOpd));
     else
       return "0";
   }, 0);
 
-  ir.addOperator("+", [](string& opd1, string& opd2) ->string {
-    if (isNumber(opd1) && isNumber(opd2))
-      return to_string(stoi(opd1) + stoi(opd2));
+  ir.addOperator("+", [](string& leftOpd, string& rightOpd) ->string {
+    if (isNumber(leftOpd) && isNumber(rightOpd))
+      return to_string(stoi(leftOpd) + stoi(rightOpd));
     else
-      return opd1 + opd2;
+      return leftOpd + rightOpd;
   }, 1);
 
-  ir.addOperator("-", [](string& opd1, string& opd2) ->string {
-    if (isNumber(opd1) && isNumber(opd2))
-      return to_string(stoi(opd1) - stoi(opd2));
+  ir.addOperator("-", [](string& leftOpd, string& rightOpd) ->string {
+    if (isNumber(leftOpd) && isNumber(rightOpd))
+      return to_string(stoi(leftOpd) - stoi(rightOpd));
     else
       return "0";
   }, 1);
 
-  ir.addOperator("==", [](string& opd1, string& opd2) ->string {
-    return opd1 == opd2 ? "1" : "0";
+  ir.addOperator("==", [](string& leftOpd, string& rightOpd) ->string {
+    return leftOpd == rightOpd ? "1" : "0";
   }, 2);
 
-  ir.addOperator("!=", [](string& opd1, string& opd2) ->string {
-    return opd1 != opd2 ? "1" : "0";
+  ir.addOperator("!=", [](string& leftOpd, string& rightOpd) ->string {
+    return leftOpd != rightOpd ? "1" : "0";
   }, 2);
 
-  ir.addOperator(">", [](string& opd1, string& opd2) ->string {
-    if (isNumber(opd1) && isNumber(opd2))
-      return stoi(opd1) > stoi(opd2) ? "1" : "0";
+  ir.addOperator(">", [](string& leftOpd, string& rightOpd) ->string {
+    if (isNumber(leftOpd) && isNumber(rightOpd))
+      return stoi(leftOpd) > stoi(rightOpd) ? "1" : "0";
     else
-      return opd1.size() > opd2.size() ? "1" : "0";
+      return leftOpd.size() > rightOpd.size() ? "1" : "0";
   }, 2);
 
-  ir.addOperator("<", [](string& opd1, string& opd2) ->string {
-    if (isNumber(opd1) && isNumber(opd2))
-      return stoi(opd1) < stoi(opd2) ? "1" : "0";
+  ir.addOperator("<", [](string& leftOpd, string& rightOpd) ->string {
+    if (isNumber(leftOpd) && isNumber(rightOpd))
+      return stoi(leftOpd) < stoi(rightOpd) ? "1" : "0";
     else
-      return opd1.size() < opd2.size() ? "1" : "0";
+      return leftOpd.size() < rightOpd.size() ? "1" : "0";
   }, 2);
    
-  ir.addOperator("=", [](string& opd1, string& opd2) ->string {
-    opd1 = opd2;
-    return opd1;
+  ir.addOperator("=", [](string& leftOpd, string& rightOpd) ->string {
+    leftOpd = rightOpd;
+    return leftOpd;
   }, 100);
 
   ir.addFunction("summ", [](const vector<string>& args) ->string {
