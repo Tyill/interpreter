@@ -70,18 +70,21 @@ public:
   /// Value of variable
   /// @param vname
   /// @return value
-  std::string variableValue(const std::string& vname) const;
+  std::string variable(const std::string& vname) const;
 
   /// Set value of variable
   /// @param vname
   /// @param value
   /// @return true - ok
-  bool setVariableValue(const std::string& vname, const std::string& value);
+  bool setVariable(const std::string& vname, const std::string& value);
 
   /// Go-to on label
   /// @param lname label name
   /// @return true - ok
-  bool onGoto(const std::string& lname);
+  bool gotoOnLabel(const std::string& lname);
+
+  /// Exit from script
+  void exitFromScript();
   
 private:
   InterpreterImpl* m_d = nullptr;

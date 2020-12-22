@@ -37,9 +37,10 @@ public:
   bool addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority);
   string cmd(string scenar);
   std::map<std::string, std::string> allVariables() const;
-  std::string variableValue(const std::string& vname) const;
-  bool setVariableValue(const std::string& vname, const std::string& value);
-  bool onGoto(const std::string& lname);
+  std::string variable(const std::string& vname) const;
+  bool setVariable(const std::string& vname, const std::string& value);
+  bool gotoOnLabel(const std::string& lname);
+  void exitFromScript();
 private:
   enum class Keyword{
     SEQUENCE,
@@ -78,6 +79,7 @@ private:
   vector<Expression> m_expr;  
   string m_err, m_prevScenar, m_result;
   size_t m_igoto = size_t(-1);
+  bool m_exit = false;
    
   string calcOperation(Keyword mainKeyword, size_t iExpr);
   string calcExpression(size_t iBegin, size_t iEnd);  
@@ -137,7 +139,10 @@ string InterpreterImpl::cmd(string scenar) {
       ex.iOperator = size_t(-1);
   }
    
+  m_exit = false;
   for (size_t i = 0; i < m_expr.size();) {
+    if (m_exit) break;
+
     m_result = calcOperation(m_expr[i].keyw, i);
 
     i = max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
@@ -192,20 +197,23 @@ bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator 
 std::map<std::string, std::string> InterpreterImpl::allVariables() const {
   return m_var;
 }
-std::string InterpreterImpl::variableValue(const std::string& vname) const {
+std::string InterpreterImpl::variable(const std::string& vname) const {
   return m_var.find(vname) != m_var.end() ? m_var.at(vname) : "";
 }
-bool InterpreterImpl::setVariableValue(const std::string& vname, const std::string& value) {
+bool InterpreterImpl::setVariable(const std::string& vname, const std::string& value) {
   bool exist = m_var.find(vname) != m_var.end();
   if (exist)
     m_var[vname] = value;
   return exist;
 }
-bool InterpreterImpl::onGoto(const std::string& lname) {
+bool InterpreterImpl::gotoOnLabel(const std::string& lname) {
   bool exist = m_label.find(lname) != m_label.end();
   if (exist)
     m_igoto = m_label[lname];
   return exist;
+}
+void InterpreterImpl::exitFromScript() {
+  m_exit = true;
 }
 
 string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
@@ -282,6 +290,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
               if (m_expr[i].keyw != Keyword::WHILE){
                 isBreak = res == "break";
                 isContinue = res == "continue";
+                g_result = res;
               }
               i = m_expr[i].iBodyEnd;
             }
@@ -307,7 +316,18 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
             default:
             break;
           }  
-          if (isBreak || (m_igoto != size_t(-1))) break;
+          if (isBreak || m_exit) break;
+
+          if (m_igoto != size_t(-1)) {
+            if ((iCondEnd <= m_igoto) && (m_igoto < iBodyEnd)) {
+              for (size_t j = m_igoto; j < i; ++j)
+                m_expr[j].iOperator = size_t(-1);
+              i = m_igoto;
+              m_igoto = size_t(-1);
+            }
+            else break;
+          }
+
           if (isContinue) i = iBodyEnd;
 
           if ((m_expr[iExpr].keyw == Keyword::WHILE) && (i >= iBodyEnd)){
@@ -843,12 +863,15 @@ bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t p
 std::map<std::string, std::string> Interpreter::allVariables() const {
   return m_d->allVariables();
 }
-std::string Interpreter::variableValue(const std::string& vname) const {
-  return m_d->variableValue(vname);
+std::string Interpreter::variable(const std::string& vname) const {
+  return m_d->variable(vname);
 }
-bool Interpreter::setVariableValue(const std::string& vname, const std::string& value) {
-  return m_d->setVariableValue(vname, value);
+bool Interpreter::setVariable(const std::string& vname, const std::string& value) {
+  return m_d->setVariable(vname, value);
 }
-bool Interpreter::onGoto(const std::string& lname) {
-  return m_d->onGoto(lname);
+bool Interpreter::gotoOnLabel(const std::string& lname) {
+  return m_d->gotoOnLabel(lname);
+}
+void Interpreter::exitFromScript() {
+    return m_d->exitFromScript();
 }
