@@ -141,18 +141,17 @@ string InterpreterImpl::cmd(string scenar) {
    
   m_exit = false;
   for (size_t i = 0; i < m_expr.size();) {
-    if (m_exit) break;
 
     m_result = calcOperation(m_expr[i].keyw, i);
-
     i = max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
-
+       
     if (m_igoto != size_t(-1)){
       for (size_t j = m_igoto; j < i; ++j)
         m_expr[j].iOperator = size_t(-1);    
       i = m_igoto;
       m_igoto = size_t(-1);
     }
+    if (m_exit) break;
   }
   return m_result;
 }
@@ -341,7 +340,6 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr){
               for (size_t j = iCondEnd; j < iBodyEnd; ++j)
                 m_expr[j].iOperator = size_t(-1);
               i = iCondEnd;
-              g_result.clear();
             }            
           }           
         }
