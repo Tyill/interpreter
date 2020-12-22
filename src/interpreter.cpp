@@ -24,7 +24,6 @@
 //
 #include "../include/interpreter.h"
 
-#include <map>
 #include <sstream>
 #include <algorithm>
 #include <cctype>
@@ -123,6 +122,9 @@ string InterpreterImpl::cmd(string scenar) {
   if (m_prevScenar != scenar){
     m_prevScenar.clear();
     m_expr.clear();
+    m_var.clear();
+    m_macro.clear();
+    m_label.clear();
     m_soper.clear();
     m_err.clear();
     if (!checkScenar(scenar, m_err) || !parseScenar(scenar, Keyword::SEQUENCE, 0)) {
@@ -838,19 +840,15 @@ bool Interpreter::addFunction(const string& name, UserFunction ufunc){
 bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t priority){
   return m_d->addOperator(name, uoper, priority);
 }
-
 std::map<std::string, std::string> Interpreter::allVariables() const {
   return m_d->allVariables();
 }
-
 std::string Interpreter::variableValue(const std::string& vname) const {
   return m_d->variableValue(vname);
 }
-
 bool Interpreter::setVariableValue(const std::string& vname, const std::string& value) {
   return m_d->setVariableValue(vname, value);
 }
-
 bool Interpreter::onGoto(const std::string& lname) {
   return m_d->onGoto(lname);
 }
