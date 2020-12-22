@@ -46,71 +46,94 @@ public:
     else
       return "0";
   }, 0);
-
   ir.addOperator("/", [](string& leftOpd, string& rightOpd) ->string {
     if (isNumber(leftOpd) && isNumber(rightOpd))
       return to_string(stoi(leftOpd) / stoi(rightOpd));
     else
       return "0";
   }, 0);
-
   ir.addOperator("+", [](string& leftOpd, string& rightOpd) ->string {
     if (isNumber(leftOpd) && isNumber(rightOpd))
       return to_string(stoi(leftOpd) + stoi(rightOpd));
     else
       return leftOpd + rightOpd;
   }, 1);
-
   ir.addOperator("-", [](string& leftOpd, string& rightOpd) ->string {
     if (isNumber(leftOpd) && isNumber(rightOpd))
       return to_string(stoi(leftOpd) - stoi(rightOpd));
     else
       return "0";
   }, 1);
-
-  ir.addOperator("==", [](string& leftOpd, string& rightOpd) ->string {
-    return leftOpd == rightOpd ? "1" : "0";
-  }, 2);
-
-  ir.addOperator("!=", [](string& leftOpd, string& rightOpd) ->string {
-    return leftOpd != rightOpd ? "1" : "0";
-  }, 2);
-
   ir.addOperator(">", [](string& leftOpd, string& rightOpd) ->string {
     if (isNumber(leftOpd) && isNumber(rightOpd))
       return stoi(leftOpd) > stoi(rightOpd) ? "1" : "0";
     else
       return leftOpd.size() > rightOpd.size() ? "1" : "0";
   }, 2);
-
   ir.addOperator("<", [](string& leftOpd, string& rightOpd) ->string {
     if (isNumber(leftOpd) && isNumber(rightOpd))
       return stoi(leftOpd) < stoi(rightOpd) ? "1" : "0";
     else
       return leftOpd.size() < rightOpd.size() ? "1" : "0";
   }, 2);
-
+  ir.addOperator("==", [](string& leftOpd, string& rightOpd) ->string {
+    return leftOpd == rightOpd ? "1" : "0";
+  }, 3);
+  ir.addOperator("!=", [](string& leftOpd, string& rightOpd) ->string {
+    return leftOpd != rightOpd ? "1" : "0";
+  }, 3);  
   ir.addOperator("+=", [](string& leftOpd, string& rightOpd) ->string {
     if (isNumber(leftOpd) && isNumber(rightOpd)){
       leftOpd = to_string(stoi(leftOpd) + stoi(rightOpd));
+      return leftOpd;
+    }    
+    else{
+      leftOpd += rightOpd;
+      return leftOpd;
+    }
+  }, 4);
+  ir.addOperator("-=", [](string& leftOpd, string& rightOpd) ->string {
+    if (isNumber(leftOpd) && isNumber(rightOpd)){
+      leftOpd = to_string(stoi(leftOpd) - stoi(rightOpd));
       return leftOpd;
     }     
     else{
       leftOpd += rightOpd;
       return leftOpd;
     }
-  }, 100);
-   
+  }, 4);
+  ir.addOperator("++", [](string& leftOpd, string& rightOpd) ->string {
+    if (isNumber(leftOpd)){
+      leftOpd = to_string(stoi(leftOpd) + 1);
+      return leftOpd;
+    }    
+    if (isNumber(rightOpd)){
+      rightOpd = to_string(stoi(rightOpd) + 1);
+    }
+    return rightOpd;
+  }, 4);
   ir.addOperator("=", [](string& leftOpd, string& rightOpd) ->string {
     leftOpd = rightOpd;
     return leftOpd;
-  }, 100);
-
+  }, 5);
+  ir.addOperator("->", [](string& leftOpd, string& rightOpd) ->string {
+    rightOpd = leftOpd;
+    return rightOpd;
+  }, 5);
   ir.addFunction("summ", [](const vector<string>& args) ->string {
     int res = 0;
     for (auto& v : args) {
       if (isNumber(v)) res += stoi(v);
     }
+    return to_string(res);
+  });
+  Interpreter* pIr = &ir;
+  ir.addFunction("setB", [pIr](const vector<string>& args) ->string {
+    int res = 0;
+    for (auto& v : args) {
+      if (isNumber(v)) res += stoi(v);
+    }
+    pIr->setVariable("$b", to_string(res));
     return to_string(res);
   });
   }
@@ -119,32 +142,46 @@ public:
   Interpreter ir;
 };
 
-TEST_F(InprTest, test1){   
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a + $b;") == "7");
+TEST_F(InprTest, operatorTest){   
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a + $b") == "7");
+  EXPECT_TRUE(ir.cmd("$a += 5; $b = 2; $a + $b") == "7");
+  EXPECT_TRUE(ir.cmd("$a = 4; ++$a; $b = 2; $a + $b") == "7");
+  EXPECT_TRUE(ir.cmd("$a = 4; $a++; $b = 2; $a + $b") == "7");
+  EXPECT_TRUE(ir.cmd("$c = ($a == $b); $c") == "1");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a->$b; $b") == "5");
 }
-TEST_F(InprTest, test2){   
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a + $b;") != "6");
+TEST_F(InprTest, conditionTest){   
+  EXPECT_TRUE(ir.cmd("$a = 5; if ($a == 5){ $b = 2; } $a + $b") == "7");
+  EXPECT_TRUE(ir.cmd("$a = 5; if ($a == 3){ $b = 2;} else { $a = 3;}; $a") == "3");
+  EXPECT_TRUE(ir.cmd("$a = 5; if ($a == 3){ $b = 2;} elseif($a == 5){ $a = 3;}; $a") == "3");
+  EXPECT_TRUE(ir.cmd("$a = 5; if ($a == 3){ $b = 2;} elseif($a != 4){ $a = 3;}; $a") == "3");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; if ($a == 1 + $b){ $b = 2; } elseif($a != 4){ $a = 3;}; $a") == "3");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ $a -= 1; $b += 1; } $b") == "5");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ while($b < $a){ $b += 1; break;} $a -= 1;} $b") == "3");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ $a -= 1; $b += 1; if ($a == 1){ break;} } $b") == "4");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ $a -= 1; $b += 1; if ($a == 1){ if ($a == 1){ break;}} } $b") == "4");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ $a -= 1; if ($a == 2){continue;} $b += 1;} $b") == "4");
 }
-TEST_F(InprTest, test3){  
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; summ($a, $b);") == "7");
+TEST_F(InprTest, functionTest){   
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; summ($a, $b)") == "7");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; 1 + summ($a, $b)") == "8");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; 1 + summ($a, $b) - 1") == "7");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; 1 + summ($a, $b, 1) - 1") == "8");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; 1 + summ() + $b") == "3");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; setB($a - 1)") == "4");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; 1 + summ(1, summ($a)) + $b") == "9");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; summ(summ($a, summ($b)), summ($b, summ($a)))") == "14");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; summ(summ($a + summ($b + 1, 1) + 3, summ($b)))") == "14");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ $a -= summ(1); if ($a == 2){continue;} $b += summ(1);} $b") == "4");
 }
-TEST_F(InprTest, test4){  
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a*2 + $b;") == "12");
+TEST_F(InprTest, macrosTest){   
+  EXPECT_TRUE(ir.cmd("$a = 5; #macro myMacr{$a = $a + 2;} #myMacr; #myMacr; #myMacr;") == "11");
 }
-TEST_F(InprTest, test5){  
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a / 2 + $b;") == "4");
-}
-TEST_F(InprTest, test6){  
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; if ($a > 3){ $b = 1;} $b;") == "1");
-}
-TEST_F(InprTest, test7){  
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; if ($a < 4){ $b = 1;} else {$b = 3;} $b;") == "3");
-}
-TEST_F(InprTest, test8){  
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;") == "9");
-}
-TEST_F(InprTest, test9){  
-  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $b += $a; $b;") == "7");
+TEST_F(InprTest, gotoTest){   
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; goto l_jmp; $a = summ($a, $b); l_jmp: $a;") == "5");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; while($a > 0){ $a -= 1; if ($a == 2){ goto l_jmp;}} l_jmp: $a; ") == "2");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; goto l_cyc; l_jmp: goto l_exit; l_cyc: while($a > 0){ $a -= 1; if ($a == 2){ goto l_jmp;};}; l_exit: $a;") == "2");
+  EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; while($a > 0){goto l_jmp1; l_jmp: $a = 10; goto l_exit; l_jmp1: $a -= 1; if ($a == 2){ goto l_jmp;}} l_exit: $a; ") == "10");
 }
 
 int main(int argc, char* argv[]){

@@ -1,6 +1,6 @@
 # Tiny interpreter
 Simple and fast command interpreter.  
-Library [one header only](https://github.com/Tyill/interpreter/blob/master/include) and [source file](https://github.com/Tyill/interpreter/blob/master/src).
+Library [one header](https://github.com/Tyill/interpreter/tree/main/include/interpreter.h) and [source file](https://github.com/Tyill/interpreter/tree/main/src/interpreter.cpp).
 
 Example:
 ```cpp
@@ -83,6 +83,16 @@ Macro declaration with '#macro name {body}'
 Insert a macro with '#'
 ```
 $c = 5; #myMac;
+```
+
+### Goto
+Jump on label.
+Name of label must start with 'l_' and end with ':'
+```
+if ($a == 3){
+  goto l_myLabel1;
+}
+l_myLabel1: $a = 4;
 ```
 
 ### Keywords
@@ -193,7 +203,7 @@ int main(int argc, char* argv[])
 }
 ```
 
-### [Tests](https://github.com/Tyill/interpreter/blob/master/src/test.cpp)
+### [Tests](https://github.com/Tyill/interpreter/blob/main/src/test.cpp)
 
 
 ### License
