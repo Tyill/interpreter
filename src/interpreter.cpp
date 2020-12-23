@@ -200,10 +200,8 @@ std::string InterpreterImpl::variable(const std::string& vname) const {
   return m_var.find(vname) != m_var.end() ? m_var.at(vname) : "";
 }
 bool InterpreterImpl::setVariable(const std::string& vname, const std::string& value) {
-  bool exist = m_var.find(vname) != m_var.end();
-  if (exist)
-    m_var[vname] = value;
-  return exist;
+  m_var[vname] = value;
+  return true;
 }
 bool InterpreterImpl::gotoOnLabel(const std::string& lname) {
   bool exist = m_label.find(lname) != m_label.end();
