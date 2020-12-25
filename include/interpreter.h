@@ -78,6 +78,12 @@ public:
   /// @return true - ok
   bool setVariable(const std::string& vname, const std::string& value);
 
+  /// Set macro
+  /// @param mname
+  /// @param script
+  /// @return true - ok
+  bool setMacro(const std::string& mname, const std::string& script);
+
   /// Go-to on label
   /// @param lname label name
   /// @return true - ok

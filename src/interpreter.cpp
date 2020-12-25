@@ -39,6 +39,7 @@ public:
   std::map<std::string, std::string> allVariables() const;
   std::string variable(const std::string& vname) const;
   bool setVariable(const std::string& vname, const std::string& value);
+  bool setMacro(const std::string& mname, const std::string& script);
   bool gotoOnLabel(const std::string& lname);
   void exitFromScript();
 private:
@@ -158,10 +159,10 @@ string InterpreterImpl::cmd(string scenar) {
 
 bool InterpreterImpl::checkScenar(const string& scenar, string& err) const{
 
-#define CHECK(condition)                                                    \
-  if (condition){                                                           \
+#define CHECK(condition)                                                \
+  if (condition){                                                       \
     if (err.empty()) err = "Error check scenar: " + string(#condition); \
-    return false;                                                           \
+    return false;                                                       \
   }  
 
   CHECK(std::count(scenar.begin(), scenar.end(), '{') != std::count(scenar.begin(), scenar.end(), '}'));
@@ -201,6 +202,10 @@ std::string InterpreterImpl::variable(const std::string& vname) const {
 }
 bool InterpreterImpl::setVariable(const std::string& vname, const std::string& value) {
   m_var[vname] = value;
+  return true;
+}
+bool InterpreterImpl::setMacro(const std::string& mname, const std::string& script) {
+  m_macro[mname] = script;
   return true;
 }
 bool InterpreterImpl::gotoOnLabel(const std::string& lname) {
@@ -864,6 +869,9 @@ std::string Interpreter::variable(const std::string& vname) const {
 }
 bool Interpreter::setVariable(const std::string& vname, const std::string& value) {
   return m_d->setVariable(vname, value);
+}
+bool Interpreter::setMacro(const std::string& mname, const std::string& script) {
+  return m_d->setMacro(mname, script);
 }
 bool Interpreter::gotoOnLabel(const std::string& lname) {
   return m_d->gotoOnLabel(lname);
