@@ -161,6 +161,7 @@ TEST_F(InprTest, conditionTest){
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ $a -= 1; $b += 1; if ($a == 1){ break;} } $b") == "4");
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ $a -= 1; $b += 1; if ($a == 1){ if ($a == 1){ break;}} } $b") == "4");
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 0; while($a > 0){ $a -= 1; if ($a == 2){continue;} $b += 1;} $b") == "4");
+  EXPECT_TRUE(ir.cmd("$a = 5; if($a == 3){ $b = 3;} elseif($a == 5){ $b = 5;} elseif($a == 5){ $b = 4;} $b") == "5");
 }
 TEST_F(InprTest, functionTest){   
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; summ($a, $b)") == "7");

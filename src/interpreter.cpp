@@ -527,8 +527,12 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
           Keyword keyw = keywordByName(kname);
           m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });
           
-          if (keyw == Keyword::IF) iIF = iExpr;
-          else if (keyw == Keyword::ELSE_IF) m_expr[iExpr].params = to_string(iIF);
+          if (keyw == Keyword::IF){ 
+            iIF = iExpr;
+          }else if (keyw == Keyword::ELSE_IF){            
+            m_expr[iExpr].params = to_string(iIF);
+            iIF = iExpr;
+          }
                     
           --cpos;
           const string condition = getIntroScenar(scenar, cpos, '(', ')');
