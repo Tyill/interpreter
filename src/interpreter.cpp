@@ -540,9 +540,13 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
           
           m_expr[iExpr].iConditionEnd = m_expr.size();
           
-          const string body = getIntroScenar(scenar, cpos, '{', '}');
-          CHECK(body.empty() || !parseScenar(body, Keyword::SEQUENCE, gpos + cpos - body.size() - 2));
-          
+          if (scenar[cpos] == '{'){
+            const string body = getIntroScenar(scenar, cpos, '{', '}');
+            CHECK(body.empty() || !parseScenar(body, Keyword::SEQUENCE, gpos + cpos - body.size() - 2));
+          }else{
+            const string body = getNextParam(scenar, cpos, ';') + ';';
+            CHECK((body.size() == 1) || !parseScenar(body, Keyword::SEQUENCE, gpos + cpos - body.size()));
+          }          
           iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
           
           if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
@@ -554,9 +558,13 @@ bool InterpreterImpl::parseScenar(const string& scenar, Keyword mainKeyword, siz
 
           m_expr[iExpr].params = to_string(iIF);
 
-          const string body = getIntroScenar(scenar, cpos, '{', '}');
-          CHECK(body.empty() || !parseScenar(body, Keyword::SEQUENCE, gpos + cpos - body.size() - 2));
-                    
+          if (scenar[cpos] == '{'){
+            const string body = getIntroScenar(scenar, cpos, '{', '}');
+            CHECK(body.empty() || !parseScenar(body, Keyword::SEQUENCE, gpos + cpos - body.size() - 2));
+          }else{
+            const string body = getNextParam(scenar, cpos, ';') + ';';
+            CHECK((body.size() == 1) || !parseScenar(body, Keyword::SEQUENCE, gpos + cpos - body.size()));
+          }                   
           m_expr[iExpr].iConditionEnd = iExpr + 1;
           iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
 
