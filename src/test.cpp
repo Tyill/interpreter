@@ -144,10 +144,10 @@ public:
 
 TEST_F(InprTest, operatorTest){   
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a + $b") == "7");
-  EXPECT_TRUE(ir.cmd("$a += 5; $b = 2; $a + $b") == "7");
+  EXPECT_TRUE(ir.cmd("$a = 0; $a += 5; $b = 2; $a + $b") == "7");
   EXPECT_TRUE(ir.cmd("$a = 4; ++$a; $b = 2; $a + $b") == "7");
   EXPECT_TRUE(ir.cmd("$a = 4; $a++; $b = 2; $a + $b") == "7");
-  EXPECT_TRUE(ir.cmd("$c = ($a == $b); $c") == "1");
+  EXPECT_TRUE(ir.cmd("$a = 0; $b = 0; $c = ($a == $b); $c") == "1");
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; $a->$b; $b") == "5");
   EXPECT_TRUE(ir.cmd("$b = \"summ = \"; $a = $b + \"$a + $b\"; $a") == "summ = $a + $b");
   EXPECT_TRUE(ir.cmd("$b = \"$a + $b\"; $a = \"summ = \" + $b; $a") == "summ = $a + $b"); 
