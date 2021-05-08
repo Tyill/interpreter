@@ -290,7 +290,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
     }
     g_result = m_ufunc[m_expr[iExpr].params](args);
   }
-                        break;
+    break;
   case Keyword::WHILE:
   case Keyword::IF:
   case Keyword::ELSE:
@@ -301,7 +301,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
     if (m_label.find(m_expr[iExpr].params) != m_label.end())
       m_igoto = m_label[m_expr[iExpr].params];
   }
-                    break;
+    break;
   default:
     break;
   }
@@ -336,7 +336,7 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
         calcExpression(i + 1, m_expr[i].iBodyEnd);
         i = m_expr[i].iBodyEnd;
       }
-                              break;
+        break;
       case Keyword::WHILE:
       case Keyword::IF:
       case Keyword::ELSE:
@@ -349,25 +349,25 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
         }
         i = m_expr[i].iBodyEnd;
       }
-                           break;
+        break;
       case Keyword::BREAK: {
         isBreak = true;
         if (m_expr[iExpr].keyw != Keyword::WHILE)
           g_result = "break";
       }
-                         break;
+        break;
       case Keyword::CONTINUE: {
         isContinue = true;
         if (m_expr[iExpr].keyw != Keyword::WHILE)
           g_result = "continue";
       }
-                            break;
+        break;
       case Keyword::GOTO: {
         if (m_label.find(m_expr[i].params) != m_label.end()) {
           m_igoto = m_label[m_expr[i].params];
         }
       }
-                        break;
+        break;
       default:
         break;
       }
@@ -634,7 +634,7 @@ bool InterpreterImpl::parseInstructionScenar(const string& scenar, size_t gpos) 
       const string mvalue = getIntroScenar(scenar, cpos, '{', '}');
       CHECK_PARSE_RETURN(mname.empty() || mvalue.empty());
 
-      m_macro.insert({ "#" + mname, mvalue });
+      m_macro["#" + mname] = mvalue;
 
       if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
     }
