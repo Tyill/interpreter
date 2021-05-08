@@ -44,7 +44,7 @@ public:
   void exitFromScript();
 
 private:
-  enum class Keyword{
+  enum class Keyword {
     INSTRUCTION,
     EXPRESSION,
     OPERATOR,
@@ -60,8 +60,8 @@ private:
     VARIABLE,
     VALUE,
     GOTO,
-  }; 
-  struct Expression{    
+  };
+  struct Expression {
     Keyword keyw;
     size_t iConditionEnd;
     size_t iBodyEnd;
@@ -69,7 +69,7 @@ private:
     string params;
     string result;
   };
-  struct Operatr{
+  struct Operatr {
     size_t inx, priority, iLOpr, iROpr;
   };
   map<string, Interpreter::UserFunction> m_ufunc;
@@ -78,20 +78,21 @@ private:
   map<string, string> m_macro;
   map<string, size_t> m_label;
   map<size_t, vector<Operatr>> m_soper;
-  vector<Expression> m_expr;  
+  vector<Expression> m_expr;
   string m_err, m_prevScenar, m_result;
   size_t m_igoto = size_t(-1);
   bool m_exit = false;
-   
+
   string calcOperation(Keyword mainKeyword, size_t iExpr);
   string calcCondition(size_t iExpr);
-  string calcExpression(size_t iBegin, size_t iEnd);  
+  string calcExpression(size_t iBegin, size_t iEnd);
   void calcOperatorPriority(size_t iBegin, size_t iEnd, vector<Operatr>& oprs);
-  
+
   bool parseInstructionScenar(const string& scenar, size_t gpos);
   bool parseExpressionScenar(const string& scenar, size_t gpos);
   bool parseArgumentScenar(const string& scenar, size_t gpos);
-  
+  bool parseMacroArgs(const string& args, string& macro);
+
   void cleaningScenar(string& scenar) const;
   bool checkScenar(const string& scenar, string& err) const;
 
@@ -116,7 +117,7 @@ string InterpreterImpl::cmd(string scenar) {
 
   if (scenar.back() != ';') scenar += ';';
 
-  if (m_prevScenar != scenar){
+  if (m_prevScenar != scenar) {
     m_prevScenar.clear();
     m_expr.clear();
     m_label.clear();
@@ -131,16 +132,16 @@ string InterpreterImpl::cmd(string scenar) {
     for (auto& ex : m_expr)
       ex.iOperator = size_t(-1);
   }
-   
+
   m_exit = false;
   for (size_t i = 0; i < m_expr.size();) {
 
     m_result = calcOperation(m_expr[i].keyw, i);
     i = max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
-       
-    if (m_igoto != size_t(-1)){
+
+    if (m_igoto != size_t(-1)) {
       for (size_t j = m_igoto; j < i; ++j)
-        m_expr[j].iOperator = size_t(-1);    
+        m_expr[j].iOperator = size_t(-1);
       i = m_igoto;
       m_igoto = size_t(-1);
     }
@@ -196,7 +197,7 @@ void InterpreterImpl::cleaningScenar(string& scenar) const {
   }
 }
 
-bool InterpreterImpl::checkScenar(const string& scenar, string& err) const{
+bool InterpreterImpl::checkScenar(const string& scenar, string& err) const {
 
 #define CHECK_SCENAR_RETURN(condition)                                                \
   if (condition){                                                       \
@@ -219,16 +220,16 @@ bool InterpreterImpl::checkScenar(const string& scenar, string& err) const{
   CHECK_SCENAR_RETURN(scenar.find("{{") != string::npos);
   CHECK_SCENAR_RETURN(scenar.find("{}") != string::npos);
 #undef CHECK_SCENAR_RETURN
-  
+
   return true;
 }
 
-bool InterpreterImpl::addFunction(const string& name, Interpreter::UserFunction ufunc){
+bool InterpreterImpl::addFunction(const string& name, Interpreter::UserFunction ufunc) {
   if (name.empty() || (keywordByName(name) != Keyword::INSTRUCTION) || isFindKeySymbol(name, 0, name.size())) return false;
   m_ufunc.insert({ name, move(ufunc) });
   return true;
 }
-bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority){
+bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority) {
   if (name.empty() || (keywordByName(name) != Keyword::INSTRUCTION) || isFindKeySymbol(name, 0, name.size())) return false;
   m_uoper.insert({ name, {move(uopr), priority} });
   return true;
@@ -260,167 +261,167 @@ void InterpreterImpl::exitFromScript() {
 
 string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
 
-    string g_result;
-    switch (mainKeyword) {
-    case Keyword::VARIABLE:
-        g_result = m_var[m_expr[iExpr].params];
-        break;
-    case Keyword::VALUE:
-        g_result = m_expr[iExpr].params;
-        break;
-    case Keyword::EXPRESSION:
-        g_result = calcExpression(iExpr + 1, m_expr[iExpr].iBodyEnd);
-        break;
-    case Keyword::FUNCTION: {
-        size_t iBegin = iExpr + 1;
-        size_t iEnd = m_expr[iExpr].iConditionEnd;
-        vector<string> args;
-        for (size_t i = iBegin; i < iEnd;) {
-            if ((i + 1 == m_expr[i].iBodyEnd - 1) && ((m_expr[i + 1].keyw == Keyword::VARIABLE) || (m_expr[i + 1].keyw == Keyword::VALUE))) {
-                if (m_expr[i + 1].keyw == Keyword::VARIABLE)
-                    args.emplace_back(m_var[m_expr[i + 1].params]);
-                else
-                    args.emplace_back(m_expr[i + 1].params);
-            }
-            else {
-                args.emplace_back(calcExpression(i + 1, m_expr[i].iBodyEnd));
-            }
-            i = m_expr[i].iBodyEnd;
-        }
-        g_result = m_ufunc[m_expr[iExpr].params](args);
-    }
+  string g_result;
+  switch (mainKeyword) {
+  case Keyword::VARIABLE:
+    g_result = m_var[m_expr[iExpr].params];
     break;
-    case Keyword::WHILE:
-    case Keyword::IF:
-    case Keyword::ELSE:
-    case Keyword::ELSE_IF:
-        g_result = calcCondition(iExpr);
-        break;
-    case Keyword::GOTO: {
-        if (m_label.find(m_expr[iExpr].params) != m_label.end())
-            m_igoto = m_label[m_expr[iExpr].params];
-    }
+  case Keyword::VALUE:
+    g_result = m_expr[iExpr].params;
     break;
-    default:
-        break;
+  case Keyword::EXPRESSION:
+    g_result = calcExpression(iExpr + 1, m_expr[iExpr].iBodyEnd);
+    break;
+  case Keyword::FUNCTION: {
+    size_t iBegin = iExpr + 1;
+    size_t iEnd = m_expr[iExpr].iConditionEnd;
+    vector<string> args;
+    for (size_t i = iBegin; i < iEnd;) {
+      if ((i + 1 == m_expr[i].iBodyEnd - 1) && ((m_expr[i + 1].keyw == Keyword::VARIABLE) || (m_expr[i + 1].keyw == Keyword::VALUE))) {
+        if (m_expr[i + 1].keyw == Keyword::VARIABLE)
+          args.emplace_back(m_var[m_expr[i + 1].params]);
+        else
+          args.emplace_back(m_expr[i + 1].params);
+      }
+      else {
+        args.emplace_back(calcExpression(i + 1, m_expr[i].iBodyEnd));
+      }
+      i = m_expr[i].iBodyEnd;
     }
-    return g_result;
+    g_result = m_ufunc[m_expr[iExpr].params](args);
+  }
+                        break;
+  case Keyword::WHILE:
+  case Keyword::IF:
+  case Keyword::ELSE:
+  case Keyword::ELSE_IF:
+    g_result = calcCondition(iExpr);
+    break;
+  case Keyword::GOTO: {
+    if (m_label.find(m_expr[iExpr].params) != m_label.end())
+      m_igoto = m_label[m_expr[iExpr].params];
+  }
+                    break;
+  default:
+    break;
+  }
+  return g_result;
 }
 string InterpreterImpl::calcCondition(size_t iExpr) {
 
-    string g_result;
-    size_t iBegin = iExpr + 1;
-    size_t iCondEnd = m_expr[iExpr].iConditionEnd;
-    size_t iBodyEnd = m_expr[iExpr].iBodyEnd;
-    if ((m_expr[iExpr].keyw == Keyword::ELSE) || (m_expr[iExpr].keyw == Keyword::ELSE_IF)) {
-        size_t iIF = stoul(m_expr[iExpr].params);
-        if (iIF != size_t(-1)) {
-            string ifCondn = m_expr[iIF].result;
-            if ((isNumber(ifCondn) && (stoi(ifCondn) != 0)) || (!isNumber(ifCondn) && !ifCondn.empty())) {
-                return g_result;
-            }
+  string g_result;
+  size_t iBegin = iExpr + 1;
+  size_t iCondEnd = m_expr[iExpr].iConditionEnd;
+  size_t iBodyEnd = m_expr[iExpr].iBodyEnd;
+  if ((m_expr[iExpr].keyw == Keyword::ELSE) || (m_expr[iExpr].keyw == Keyword::ELSE_IF)) {
+    size_t iIF = stoul(m_expr[iExpr].params);
+    if (iIF != size_t(-1)) {
+      string ifCondn = m_expr[iIF].result;
+      if ((isNumber(ifCondn) && (stoi(ifCondn) != 0)) || (!isNumber(ifCondn) && !ifCondn.empty())) {
+        return g_result;
+      }
+    }
+    else return g_result;
+  }
+  string condn;
+  if (iBegin < iCondEnd) {
+    condn = m_expr[iExpr].result = calcExpression(iBegin, iCondEnd);
+  }
+  if ((m_expr[iExpr].keyw == Keyword::ELSE) || (isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
+    bool isContinue = false,
+      isBreak = false;
+    for (size_t i = iCondEnd; i < iBodyEnd;) {
+      switch (m_expr[i].keyw) {
+      case Keyword::EXPRESSION: {
+        calcExpression(i + 1, m_expr[i].iBodyEnd);
+        i = m_expr[i].iBodyEnd;
+      }
+                              break;
+      case Keyword::WHILE:
+      case Keyword::IF:
+      case Keyword::ELSE:
+      case Keyword::ELSE_IF: {
+        string res = calcOperation(m_expr[i].keyw, i);
+        if (m_expr[i].keyw != Keyword::WHILE) {
+          isBreak = res == "break";
+          isContinue = res == "continue";
+          g_result = res;
         }
-        else return g_result;
-    }
-    string condn;
-    if (iBegin < iCondEnd) {
-        condn = m_expr[iExpr].result = calcExpression(iBegin, iCondEnd);
-    }
-    if ((m_expr[iExpr].keyw == Keyword::ELSE) || (isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
-        bool isContinue = false,
-            isBreak = false;
-        for (size_t i = iCondEnd; i < iBodyEnd;) {
-            switch (m_expr[i].keyw) {
-            case Keyword::EXPRESSION: {
-                calcExpression(i + 1, m_expr[i].iBodyEnd);
-                i = m_expr[i].iBodyEnd;
-            }
-            break;
-            case Keyword::WHILE:
-            case Keyword::IF:
-            case Keyword::ELSE:
-            case Keyword::ELSE_IF: {
-                string res = calcOperation(m_expr[i].keyw, i);
-                if (m_expr[i].keyw != Keyword::WHILE) {
-                    isBreak = res == "break";
-                    isContinue = res == "continue";
-                    g_result = res;
-                }
-                i = m_expr[i].iBodyEnd;
-            }
-            break;
-            case Keyword::BREAK: {
-                isBreak = true;
-                if (m_expr[iExpr].keyw != Keyword::WHILE)
-                    g_result = "break";
-            }
-            break;
-            case Keyword::CONTINUE: {
-                isContinue = true;
-                if (m_expr[iExpr].keyw != Keyword::WHILE)
-                    g_result = "continue";
-            }
-            break;
-            case Keyword::GOTO: {
-                if (m_label.find(m_expr[i].params) != m_label.end()) {
-                    m_igoto = m_label[m_expr[i].params];
-                }
-            }
-            break;
-            default:
-                break;
-            }
-            if (isBreak || m_exit) break;
-
-            if (m_igoto != size_t(-1)) {
-                if ((iCondEnd <= m_igoto) && (m_igoto < iBodyEnd)) {
-                    for (size_t j = m_igoto; j < i; ++j)
-                        m_expr[j].iOperator = size_t(-1);
-                    i = m_igoto;
-                    m_igoto = size_t(-1);
-                }
-                else break;
-            }
-
-            if (isContinue) i = iBodyEnd;
-
-            if ((m_expr[iExpr].keyw == Keyword::WHILE) && (i >= iBodyEnd)) {
-                isContinue = false;
-
-                for (size_t j = iBegin; j < iCondEnd; ++j)
-                    m_expr[j].iOperator = size_t(-1);
-
-                string condn = calcExpression(iBegin, iCondEnd);
-                if ((isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
-                    for (size_t j = iCondEnd; j < iBodyEnd; ++j)
-                        m_expr[j].iOperator = size_t(-1);
-                    i = iCondEnd;
-                }
-            }
+        i = m_expr[i].iBodyEnd;
+      }
+                           break;
+      case Keyword::BREAK: {
+        isBreak = true;
+        if (m_expr[iExpr].keyw != Keyword::WHILE)
+          g_result = "break";
+      }
+                         break;
+      case Keyword::CONTINUE: {
+        isContinue = true;
+        if (m_expr[iExpr].keyw != Keyword::WHILE)
+          g_result = "continue";
+      }
+                            break;
+      case Keyword::GOTO: {
+        if (m_label.find(m_expr[i].params) != m_label.end()) {
+          m_igoto = m_label[m_expr[i].params];
         }
+      }
+                        break;
+      default:
+        break;
+      }
+      if (isBreak || m_exit) break;
+
+      if (m_igoto != size_t(-1)) {
+        if ((iCondEnd <= m_igoto) && (m_igoto < iBodyEnd)) {
+          for (size_t j = m_igoto; j < i; ++j)
+            m_expr[j].iOperator = size_t(-1);
+          i = m_igoto;
+          m_igoto = size_t(-1);
+        }
+        else break;
+      }
+
+      if (isContinue) i = iBodyEnd;
+
+      if ((m_expr[iExpr].keyw == Keyword::WHILE) && (i >= iBodyEnd)) {
+        isContinue = false;
+
+        for (size_t j = iBegin; j < iCondEnd; ++j)
+          m_expr[j].iOperator = size_t(-1);
+
+        string condn = calcExpression(iBegin, iCondEnd);
+        if ((isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
+          for (size_t j = iCondEnd; j < iBodyEnd; ++j)
+            m_expr[j].iOperator = size_t(-1);
+          i = iCondEnd;
+        }
+      }
     }
-    return g_result;
+  }
+  return g_result;
 }
 string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
-   
-  if (iBegin + 1 == iEnd){
+
+  if (iBegin + 1 == iEnd) {
     if (m_expr[iBegin].keyw == Keyword::VARIABLE)
       return m_var[m_expr[iBegin].params];
     if (m_expr[iBegin].keyw == Keyword::VALUE)
       return m_expr[iBegin].params;
     return calcOperation(m_expr[iBegin].keyw, iBegin);
   }
-  
+
   bool firstRun = m_soper.find(iBegin) == m_soper.end();
   if (firstRun)
     m_soper.insert({ iBegin, vector<Operatr>() });
 
   vector<Operatr>& oprs = m_soper[iBegin];
-  if (firstRun){
-      calcOperatorPriority(iBegin, iEnd, oprs);
+  if (firstRun) {
+    calcOperatorPriority(iBegin, iEnd, oprs);
   }
 
-  if (oprs.empty()){   
+  if (oprs.empty()) {
     return calcOperation(m_expr[iBegin].keyw, iBegin);
   }
 
@@ -428,7 +429,7 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
   for (auto& op : oprs) {
     size_t iOp = op.inx;
     Expression* pLeftOperd = nullptr,
-              * pRightOperd = nullptr;
+      * pRightOperd = nullptr;
     string lValue, rValue;
     if (op.iLOpr != size_t(-1)) { // left operand
       pLeftOperd = &m_expr[op.iLOpr];
@@ -464,20 +465,20 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
     if (pRightOperd && (pRightOperd->keyw == Keyword::VARIABLE) && (pRightOperd->iOperator == size_t(-1))) {
       m_var[pRightOperd->params] = rValue;
     }
-    if (pLeftOperd){
-      if (pLeftOperd->iOperator != size_t(-1)){
+    if (pLeftOperd) {
+      if (pLeftOperd->iOperator != size_t(-1)) {
         size_t iLOp = pLeftOperd->iOperator;
-        for (size_t i = iBegin; i < iEnd; ++i){
+        for (size_t i = iBegin; i < iEnd; ++i) {
           if (m_expr[i].iOperator == iLOp)
             m_expr[i].iOperator = iOp;
         }
       }
       else pLeftOperd->iOperator = iOp;
     }
-    if (pRightOperd){
-      if (pRightOperd->iOperator != size_t(-1)){
+    if (pRightOperd) {
+      if (pRightOperd->iOperator != size_t(-1)) {
         size_t iROp = pRightOperd->iOperator;
-        for (size_t i = iBegin; i < iEnd; ++i){
+        for (size_t i = iBegin; i < iEnd; ++i) {
           if (m_expr[i].iOperator == iROp)
             m_expr[i].iOperator = iOp;
         }
@@ -489,339 +490,382 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
 }
 void InterpreterImpl::calcOperatorPriority(size_t iBegin, size_t iEnd, vector<Operatr>& oprs) {
 
-    size_t iLOpr = size_t(-1);
-    for (size_t i = iBegin; i < iEnd;) {
-        if (m_expr[i].keyw == Keyword::FUNCTION) {
-            iLOpr = i;
-            i = m_expr[i].iConditionEnd;
-            continue;
-        }
-        if (m_expr[i].keyw == Keyword::EXPRESSION) {
-            iLOpr = i;
-            i = m_expr[i].iBodyEnd;
-            continue;
-        }
-        if (m_expr[i].keyw == Keyword::OPERATOR) {
-            uint32_t priority = m_uoper[m_expr[i].params].second;
-            size_t iROpr = (i < iEnd - 1) ? i + 1 : size_t(-1);
-            oprs.emplace_back<Operatr>({ i, priority, iLOpr, iROpr });  // inx, priority
-        }
-        iLOpr = i;
-        ++i;
+  size_t iLOpr = size_t(-1);
+  for (size_t i = iBegin; i < iEnd;) {
+    if (m_expr[i].keyw == Keyword::FUNCTION) {
+      iLOpr = i;
+      i = m_expr[i].iConditionEnd;
+      continue;
     }
+    if (m_expr[i].keyw == Keyword::EXPRESSION) {
+      iLOpr = i;
+      i = m_expr[i].iBodyEnd;
+      continue;
+    }
+    if (m_expr[i].keyw == Keyword::OPERATOR) {
+      uint32_t priority = m_uoper[m_expr[i].params].second;
+      size_t iROpr = (i < iEnd - 1) ? i + 1 : size_t(-1);
+      oprs.emplace_back<Operatr>({ i, priority, iLOpr, iROpr });  // inx, priority
+    }
+    iLOpr = i;
+    ++i;
+  }
 
-    size_t osz = oprs.size();
-    if (osz > 1) {
-        if (osz == 2) {
-            if (oprs[0].priority > oprs[1].priority) swap(oprs[0], oprs[1]);
-        }
-        else if (osz == 3) {
-            if (oprs[0].priority < oprs[1].priority) {
-                if (oprs[2].priority < oprs[0].priority) swap(oprs[0], oprs[2]);
-            }
-            else {
-                if (oprs[1].priority < oprs[2].priority) swap(oprs[0], oprs[1]);
-                else swap(oprs[0], oprs[2]);
-            }
-            if (oprs[2].priority < oprs[1].priority) swap(oprs[1], oprs[2]);
-        }
-        else if (osz < 10) { // faster than std::sort on small distance
-            for (size_t i = 0; i < osz - 2; ++i) {
-                size_t iMin = i;
-                size_t minPriort = oprs[i].priority;
-                for (size_t j = i + 1; j < osz; ++j) {
-                    if (oprs[j].priority < minPriort) {
-                        minPriort = oprs[j].priority;
-                        iMin = j;
-                    }
-                }
-                if (iMin != i) swap(oprs[i], oprs[iMin]);
-            }
-            if (oprs[osz - 2].priority > oprs[osz - 1].priority) swap(oprs[osz - 2], oprs[osz - 1]);
-        }
-        else {
-            sort(oprs.begin(), oprs.end(), [](const Operatr& l, const Operatr& r) {
-                return l.priority < r.priority;
-            });
-        }
+  size_t osz = oprs.size();
+  if (osz > 1) {
+    if (osz == 2) {
+      if (oprs[0].priority > oprs[1].priority) swap(oprs[0], oprs[1]);
     }
+    else if (osz == 3) {
+      if (oprs[0].priority < oprs[1].priority) {
+        if (oprs[2].priority < oprs[0].priority) swap(oprs[0], oprs[2]);
+      }
+      else {
+        if (oprs[1].priority < oprs[2].priority) swap(oprs[0], oprs[1]);
+        else swap(oprs[0], oprs[2]);
+      }
+      if (oprs[2].priority < oprs[1].priority) swap(oprs[1], oprs[2]);
+    }
+    else if (osz < 10) { // faster than std::sort on small distance
+      for (size_t i = 0; i < osz - 2; ++i) {
+        size_t iMin = i;
+        size_t minPriort = oprs[i].priority;
+        for (size_t j = i + 1; j < osz; ++j) {
+          if (oprs[j].priority < minPriort) {
+            minPriort = oprs[j].priority;
+            iMin = j;
+          }
+        }
+        if (iMin != i) swap(oprs[i], oprs[iMin]);
+      }
+      if (oprs[osz - 2].priority > oprs[osz - 1].priority) swap(oprs[osz - 2], oprs[osz - 1]);
+    }
+    else {
+      sort(oprs.begin(), oprs.end(), [](const Operatr& l, const Operatr& r) {
+        return l.priority < r.priority;
+        });
+    }
+  }
 }
 
 bool InterpreterImpl::parseInstructionScenar(const string& scenar, size_t gpos) {
 
-    size_t ssz = scenar.size(),
-        iExpr = m_expr.size(),
-        cpos = 0;
+  size_t ssz = scenar.size(),
+    iExpr = m_expr.size(),
+    cpos = 0;
 
 #define CHECK_PARSE_RETURN(condition)                                                                                                              \
-    if (condition){                                                                                                                     \
+    if (condition){                                                                                                                       \
         if (m_err.empty()) m_err = "Error scenar pos " + to_string(cpos + gpos) + " src line " + to_string(__LINE__) + ": " + #condition; \
         return false;                                                                                                                     \
     }   
 
-    size_t iIF = size_t(-1);
-    while (cpos < ssz) {
-        if (scenar[cpos] == ';') {
-            ++cpos;
-        }
-        else if (startWith(scenar, cpos, "while") || startWith(scenar, cpos, "if") || startWith(scenar, cpos, "elseif")) {
-            const string kname = getNextParam(scenar, cpos, '(');
-            CHECK_PARSE_RETURN(kname.empty());
-
-            Keyword keyw = keywordByName(kname);
-            m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });
-
-            if (keyw == Keyword::IF) {
-                iIF = iExpr;
-            }
-            else if (keyw == Keyword::ELSE_IF) {
-                m_expr[iExpr].params = to_string(iIF);
-                iIF = iExpr;
-            }
-
-            --cpos;
-            const string condition = getIntroScenar(scenar, cpos, '(', ')');
-            CHECK_PARSE_RETURN(condition.empty() || !parseExpressionScenar(condition, gpos + cpos - condition.size() - 2));
-
-            m_expr[iExpr].iConditionEnd = m_expr.size();
-
-            if (scenar[cpos] == '{') {
-                const string body = getIntroScenar(scenar, cpos, '{', '}');
-                CHECK_PARSE_RETURN(body.empty() || !parseInstructionScenar(body, gpos + cpos - body.size() - 2));
-            }
-            else {
-                const string body = getNextParam(scenar, cpos, ';') + ';';
-                CHECK_PARSE_RETURN((body.size() == 1) || !parseInstructionScenar(body, gpos + cpos - body.size()));
-            }
-            iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-
-            if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
-        }
-        else if (startWith(scenar, cpos, "else")) {
-            cpos += 4;
-
-            m_expr.emplace_back<Expression>({ Keyword::ELSE, iExpr, iExpr, size_t(-1) });
-
-            m_expr[iExpr].params = to_string(iIF);
-
-            if (scenar[cpos] == '{') {
-                const string body = getIntroScenar(scenar, cpos, '{', '}');
-                CHECK_PARSE_RETURN(body.empty() || !parseInstructionScenar(body, gpos + cpos - body.size() - 2));
-            }
-            else {
-                const string body = getNextParam(scenar, cpos, ';') + ';';
-                CHECK_PARSE_RETURN((body.size() == 1) || !parseInstructionScenar(body, gpos + cpos - body.size()));
-            }
-            m_expr[iExpr].iConditionEnd = iExpr + 1;
-            iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-
-            if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
-        }
-        else if (startWith(scenar, cpos, "break") || startWith(scenar, cpos, "continue")) {
-            const string kname = getNextParam(scenar, cpos, ';');
-            CHECK_PARSE_RETURN(kname.empty());
-            const Keyword keyw = keywordByName(kname);
-
-            m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });
-            ++iExpr;
-        }
-        else if (startWith(scenar, cpos, "#macro")) {  // macro declaration
-            cpos += 6;
-            const string mname = getNextParam(scenar, cpos, '{');
-
-            cpos -= 1;
-            const string mvalue = getIntroScenar(scenar, cpos, '{', '}');
-            CHECK_PARSE_RETURN(mname.empty() || mvalue.empty());
-
-            m_macro.insert({ "#" + mname, mvalue });
-
-            if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
-        }
-        else if (scenar[cpos] == '#') {               // macro definition
-            const string mname = getNextParam(scenar, cpos, ';');
-            CHECK_PARSE_RETURN(mname.empty() || (m_macro.find(mname) == m_macro.end()));
-
-            CHECK_PARSE_RETURN(!parseInstructionScenar(m_macro[mname], gpos + cpos - mname.size() - 1));
-            iExpr = m_expr.size();
-        }
-        else if (startWith(scenar, cpos, "goto")) {
-            cpos += 4;
-            const string lname = getNextParam(scenar, cpos, ';');
-            CHECK_PARSE_RETURN(lname.empty());
-
-            if (m_label.find(lname) == m_label.end())
-                m_label.insert({ lname, size_t(-1) });
-
-            m_expr.emplace_back<Expression>({ Keyword::GOTO, iExpr, iExpr, size_t(-1), lname });
-            ++iExpr;
-        }
-        else if (startWith(scenar, cpos, "l_")) {
-            const string lname = getNextParam(scenar, cpos, ':');
-            CHECK_PARSE_RETURN(lname.empty());
-
-            m_label[lname] = iExpr;
-        }
-        else {
-            m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
-
-            const string expr = getNextParam(scenar, cpos, ';');
-            CHECK_PARSE_RETURN(expr.empty() || !parseExpressionScenar(expr, gpos + cpos - expr.size() - 1));
-
-            iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-        }
+  size_t iIF = size_t(-1);
+  while (cpos < ssz) {
+    if (scenar[cpos] == ';') {
+      ++cpos;
     }
-    return true;
+    else if (startWith(scenar, cpos, "while") || startWith(scenar, cpos, "if") || startWith(scenar, cpos, "elseif")) {
+      const string kname = getNextParam(scenar, cpos, '(');
+      CHECK_PARSE_RETURN(kname.empty());
+
+      Keyword keyw = keywordByName(kname);
+      m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });
+
+      if (keyw == Keyword::IF) {
+        iIF = iExpr;
+      }
+      else if (keyw == Keyword::ELSE_IF) {
+        m_expr[iExpr].params = to_string(iIF);
+        iIF = iExpr;
+      }
+
+      --cpos;
+      const string condition = getIntroScenar(scenar, cpos, '(', ')');
+      CHECK_PARSE_RETURN(condition.empty() || !parseExpressionScenar(condition, gpos + cpos - condition.size() - 2));
+
+      m_expr[iExpr].iConditionEnd = m_expr.size();
+
+      if (scenar[cpos] == '{') {
+        const string body = getIntroScenar(scenar, cpos, '{', '}');
+        CHECK_PARSE_RETURN(body.empty() || !parseInstructionScenar(body, gpos + cpos - body.size() - 2));
+      }
+      else {
+        const string body = getNextParam(scenar, cpos, ';') + ';';
+        CHECK_PARSE_RETURN((body.size() == 1) || !parseInstructionScenar(body, gpos + cpos - body.size()));
+      }
+      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+
+      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+    }
+    else if (startWith(scenar, cpos, "else")) {
+      cpos += 4;
+
+      m_expr.emplace_back<Expression>({ Keyword::ELSE, iExpr, iExpr, size_t(-1) });
+
+      m_expr[iExpr].params = to_string(iIF);
+
+      if (scenar[cpos] == '{') {
+        const string body = getIntroScenar(scenar, cpos, '{', '}');
+        CHECK_PARSE_RETURN(body.empty() || !parseInstructionScenar(body, gpos + cpos - body.size() - 2));
+      }
+      else {
+        const string body = getNextParam(scenar, cpos, ';') + ';';
+        CHECK_PARSE_RETURN((body.size() == 1) || !parseInstructionScenar(body, gpos + cpos - body.size()));
+      }
+      m_expr[iExpr].iConditionEnd = iExpr + 1;
+      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+
+      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+    }
+    else if (startWith(scenar, cpos, "break") || startWith(scenar, cpos, "continue")) {
+      const string kname = getNextParam(scenar, cpos, ';');
+      CHECK_PARSE_RETURN(kname.empty());
+      const Keyword keyw = keywordByName(kname);
+
+      m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });
+      ++iExpr;
+    }
+    else if (startWith(scenar, cpos, "#macro")) {  // macro declaration
+      cpos += 6;
+      const string mname = getNextParam(scenar, cpos, '{');
+
+      cpos -= 1;
+      const string mvalue = getIntroScenar(scenar, cpos, '{', '}');
+      CHECK_PARSE_RETURN(mname.empty() || mvalue.empty());
+
+      m_macro.insert({ "#" + mname, mvalue });
+
+      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+    }
+    else if (scenar[cpos] == '#') {               // macro definition
+      const string mname = getMacroAtFirst(scenar, cpos);
+      CHECK_PARSE_RETURN(mname.empty() || (m_macro.find(mname) == m_macro.end()));
+
+      const string args = getIntroScenar(scenar, cpos, '(', ')');
+      string macro = m_macro[mname];
+      if (!args.empty())
+        CHECK_PARSE_RETURN(!parseMacroArgs(args, macro));
+      
+      CHECK_PARSE_RETURN(!parseInstructionScenar(macro, gpos + cpos - mname.size() - 1));
+      iExpr = m_expr.size();
+    }
+    else if (startWith(scenar, cpos, "goto")) {
+      cpos += 4;
+      const string lname = getNextParam(scenar, cpos, ';');
+      CHECK_PARSE_RETURN(lname.empty());
+
+      if (m_label.find(lname) == m_label.end())
+        m_label.insert({ lname, size_t(-1) });
+
+      m_expr.emplace_back<Expression>({ Keyword::GOTO, iExpr, iExpr, size_t(-1), lname });
+      ++iExpr;
+    }
+    else if (startWith(scenar, cpos, "l_")) {
+      const string lname = getNextParam(scenar, cpos, ':');
+      CHECK_PARSE_RETURN(lname.empty());
+
+      m_label[lname] = iExpr;
+    }
+    else {
+      m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
+
+      const string expr = getNextParam(scenar, cpos, ';');
+      CHECK_PARSE_RETURN(expr.empty() || !parseExpressionScenar(expr, gpos + cpos - expr.size() - 1));
+
+      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+    }
+  }
+  return true;
 }
 bool InterpreterImpl::parseExpressionScenar(const string& scenar, size_t gpos) {
 
-    size_t ssz = scenar.size(),
-        iExpr = m_expr.size(),
-        cpos = 0;
+  size_t ssz = scenar.size(),
+    iExpr = m_expr.size(),
+    cpos = 0;
 
-    while (cpos < ssz) {
-        string oprName, fName;
-        if (scenar[cpos] == '$') {
-            size_t posmem = cpos;
-            oprName = getNextOperator(scenar, cpos);
+  while (cpos < ssz) {
+    string oprName, fName;
+    if (scenar[cpos] == '$') {
+      size_t posmem = cpos;
+      oprName = getNextOperator(scenar, cpos);
 
-            if (!oprName.empty()) {
-                string vName = scenar.substr(posmem, cpos - posmem - oprName.size());
-                if (m_var.find(vName) == m_var.end())
-                    m_var.insert({ vName, "" });
+      if (!oprName.empty()) {
+        string vName = scenar.substr(posmem, cpos - posmem - oprName.size());
+        if (m_var.find(vName) == m_var.end())
+          m_var.insert({ vName, "" });
 
-                m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName }); ++iExpr;
-                m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-            }
-            else {
-                string vName = scenar.substr(cpos);
+        m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName }); ++iExpr;
+        m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
+      }
+      else {
+        string vName = scenar.substr(cpos);
 
-                if (vName.back() == ';') vName.pop_back();
+        if (vName.back() == ';') vName.pop_back();
 
-                if (m_var.find(vName) == m_var.end())
-                    m_var.insert({ vName, "" });
+        if (m_var.find(vName) == m_var.end())
+          m_var.insert({ vName, "" });
 
-                m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName });
-                break;
-            }
-        }
-        else if (!(fName = getFunctionAtFirst(scenar, cpos)).empty()) {
-            CHECK_PARSE_RETURN(m_ufunc.find(fName) == m_ufunc.end());
-
-            m_expr.emplace_back<Expression>({ Keyword::FUNCTION, iExpr, iExpr, size_t(-1), fName });
-
-            size_t cposMem = cpos;
-            const string args = getIntroScenar(scenar, cpos, '(', ')');
-            CHECK_PARSE_RETURN(args.empty() && (cposMem + 2 != cpos));
-            if (!args.empty())
-                CHECK_PARSE_RETURN(!parseArgumentScenar(args, gpos + cpos - args.size() - 2));
-
-            iExpr = m_expr[iExpr].iConditionEnd = m_expr.size();
-
-            if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
-        }
-        else if (scenar[cpos] == '(') {
-            const string expr = getIntroScenar(scenar, cpos, '(', ')');
-
-            m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
-
-            CHECK_PARSE_RETURN(expr.empty() || !parseExpressionScenar(expr, gpos + cpos - expr.size() - 2));
-
-            iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-
-            if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
-        }
-        else if (scenar[cpos] == '#') {
-            const string mname = getMacroAtFirst(scenar, cpos);
-            CHECK_PARSE_RETURN(mname.empty() || (m_macro.find(mname) == m_macro.end()));
-
-            CHECK_PARSE_RETURN(!parseExpressionScenar(m_macro[mname], gpos + cpos - mname.size()));
-
-            iExpr = m_expr.size();
-
-            if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
-        }
-        else if (!(oprName = getOperatorAtFirst(scenar, cpos)).empty()) {
-            CHECK_PARSE_RETURN(m_uoper.find(oprName) == m_uoper.end());
-
-            m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-        }
-        else {  // value
-            if (scenar[cpos] == '"') {
-                ++cpos;
-                const string value = getNextParam(scenar, cpos, '"');
-
-                size_t posmem = cpos;
-                oprName = getNextOperator(scenar, cpos);
-
-                if (!oprName.empty()) {
-                    if (isFindKeySymbol(scenar, posmem, cpos - oprName.size())) {
-                        m_err = "Error scenar pos " + to_string(posmem + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
-                        return false;
-                    }
-                    m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value }); ++iExpr;
-                    m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-                }
-                else {
-                    m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value });
-                    break;
-                }
-            }
-            else {
-                size_t posmem = cpos;
-                oprName = getNextOperator(scenar, cpos);
-
-                if (!oprName.empty()) {
-                    if (isFindKeySymbol(scenar, posmem, cpos - oprName.size())) {
-                        m_err = "Error scenar pos " + to_string(posmem + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
-                        return false;
-                    }
-                    string value = scenar.substr(posmem, cpos - posmem - oprName.size());
-
-                    m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value }); ++iExpr;
-                    m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-                }
-                else {
-                    if (isFindKeySymbol(scenar, cpos, scenar.size())) {
-                        m_err = "Error scenar pos " + to_string(cpos + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
-                        return false;
-                    }
-                    string value = scenar.substr(cpos);
-
-                    if (value.back() == ';') value.pop_back();
-
-                    m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value });
-                    break;
-                }
-            }
-        }
+        m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName });
+        break;
+      }
     }
-    return true;
-}
-bool InterpreterImpl::parseArgumentScenar(const string& scenar, size_t gpos){
-    
-    size_t ssz = scenar.size(),
-        iExpr = m_expr.size(),
-        cpos = 0,
-        cp = 0;
-    int bordCnt = 0;
+    else if (!(fName = getFunctionAtFirst(scenar, cpos)).empty()) {
+      CHECK_PARSE_RETURN(m_ufunc.find(fName) == m_ufunc.end());
 
-    while (cp < ssz) {
-        if (scenar[cp] == '(') ++bordCnt;
-        if (scenar[cp] == ')') --bordCnt;
-        if (((scenar[cp] == ',') || (cp == ssz - 1)) && (bordCnt == 0)) {
-            m_expr.emplace_back<Expression>({ Keyword::ARGUMENT, iExpr, iExpr, size_t(-1) });
+      m_expr.emplace_back<Expression>({ Keyword::FUNCTION, iExpr, iExpr, size_t(-1), fName });
 
-            if (cp == ssz - 1) ++cp;
+      size_t cposMem = cpos;
+      const string args = getIntroScenar(scenar, cpos, '(', ')');
+      CHECK_PARSE_RETURN(args.empty() && (cposMem + 2 != cpos));
+      if (!args.empty())
+        CHECK_PARSE_RETURN(!parseArgumentScenar(args, gpos + cpos - args.size() - 2));
 
-            const string arg = scenar.substr(cpos, cp - cpos);
-            CHECK_PARSE_RETURN(!arg.empty() && !parseExpressionScenar(arg, gpos + cpos));
+      iExpr = m_expr[iExpr].iConditionEnd = m_expr.size();
 
-            iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-            cpos = cp + 1;
+      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+    }
+    else if (scenar[cpos] == '(') {
+      const string expr = getIntroScenar(scenar, cpos, '(', ')');
+
+      m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
+
+      CHECK_PARSE_RETURN(expr.empty() || !parseExpressionScenar(expr, gpos + cpos - expr.size() - 2));
+
+      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+
+      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+    }
+    else if (scenar[cpos] == '#') {
+      const string mname = getMacroAtFirst(scenar, cpos);
+      CHECK_PARSE_RETURN(mname.empty() || (m_macro.find(mname) == m_macro.end()));
+
+      const string args = getIntroScenar(scenar, cpos, '(', ')');
+      string macro = m_macro[mname];
+      if (!args.empty())
+        CHECK_PARSE_RETURN(!parseMacroArgs(args, macro));
+
+      CHECK_PARSE_RETURN(!parseExpressionScenar(macro, gpos + cpos - mname.size()));
+
+      iExpr = m_expr.size();
+
+      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+    }
+    else if (!(oprName = getOperatorAtFirst(scenar, cpos)).empty()) {
+      CHECK_PARSE_RETURN(m_uoper.find(oprName) == m_uoper.end());
+
+      m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
+    }
+    else {  // value
+      if (scenar[cpos] == '"') {
+        ++cpos;
+        const string value = getNextParam(scenar, cpos, '"');
+
+        size_t posmem = cpos;
+        oprName = getNextOperator(scenar, cpos);
+
+        if (!oprName.empty()) {
+          if (isFindKeySymbol(scenar, posmem, cpos - oprName.size())) {
+            m_err = "Error scenar pos " + to_string(posmem + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
+            return false;
+          }
+          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value }); ++iExpr;
+          m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
         }
-        ++cp;
-    }   
-    return true;
+        else {
+          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value });
+          break;
+        }
+      }
+      else {
+        size_t posmem = cpos;
+        oprName = getNextOperator(scenar, cpos);
+
+        if (!oprName.empty()) {
+          if (isFindKeySymbol(scenar, posmem, cpos - oprName.size())) {
+            m_err = "Error scenar pos " + to_string(posmem + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
+            return false;
+          }
+          string value = scenar.substr(posmem, cpos - posmem - oprName.size());
+
+          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value }); ++iExpr;
+          m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
+        }
+        else {
+          if (isFindKeySymbol(scenar, cpos, scenar.size())) {
+            m_err = "Error scenar pos " + to_string(cpos + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
+            return false;
+          }
+          string value = scenar.substr(cpos);
+
+          if (value.back() == ';') value.pop_back();
+
+          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value });
+          break;
+        }
+      }
+    }
+  }
+  return true;
+}
+bool InterpreterImpl::parseArgumentScenar(const string& scenar, size_t gpos) {
+
+  size_t ssz = scenar.size(),
+         iExpr = m_expr.size(),
+         cpos = 0,
+         cp = 0;
+  int bordCnt = 0;
+
+  while (cp < ssz) {
+    if (scenar[cp] == '(') ++bordCnt;
+    if (scenar[cp] == ')') --bordCnt;
+    if (((scenar[cp] == ',') || (cp == ssz - 1)) && (bordCnt == 0)) {
+      m_expr.emplace_back<Expression>({ Keyword::ARGUMENT, iExpr, iExpr, size_t(-1) });
+
+      if (cp == ssz - 1) ++cp;
+
+      const string arg = scenar.substr(cpos, cp - cpos);
+      CHECK_PARSE_RETURN(!arg.empty() && !parseExpressionScenar(arg, gpos + cpos));
+
+      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+      cpos = cp + 1;
+    }
+    ++cp;
+  }
+  return true;
+}
+bool InterpreterImpl::parseMacroArgs(const string& args, string& macro) {
+
+  size_t ssz = args.size(),
+         cpos = 0,
+         cp = 0;
+  int bordCnt = 0;
+  int argIndex = 1;
+
+  while (cp < ssz) {
+    if (args[cp] == '(') ++bordCnt;
+    if (args[cp] == ')') --bordCnt;
+    if (((args[cp] == ',') || (cp == ssz - 1)) && (bordCnt == 0)) {
+     
+      if (cp == ssz - 1) ++cp;
+
+      const string arg = args.substr(cpos, cp - cpos);
+      
+      size_t argPos = 0;
+      argPos = macro.find("$" + to_string(argIndex), argPos);
+      while (argPos != string::npos) {
+      
+        macro.replace(argPos, ("$" + to_string(argIndex)).size(), arg);
+
+        argPos = macro.find("$" + to_string(argIndex), argPos);
+      }
+
+      cpos = cp + 1;
+      ++argIndex;
+    }
+    ++cp;
+  }
+  return true;
 }
 
 string InterpreterImpl::getNextParam(const string& scenar, size_t& cpos, char symb) const {
@@ -852,7 +896,7 @@ string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) cons
 string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) const {
   string opr = "";
   for (const auto& op : m_uoper) {
-    if (startWith(scenar, cpos, op.first)){      
+    if (startWith(scenar, cpos, op.first)) {
       if (opr.empty() || (opr.size() < op.first.size()))
         opr = op.first;
     }
@@ -863,7 +907,7 @@ string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) c
 string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) const {
   string fName = "";
   for (const auto& f : m_ufunc) {
-    if (startWith(scenar, cpos, f.first)){      
+    if (startWith(scenar, cpos, f.first)) {
       if (fName.empty() || (fName.size() < f.first.size()))
         fName = f.first;
     }
@@ -874,7 +918,7 @@ string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) c
 string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) const {
   string mName = "";
   for (const auto& m : m_macro) {
-    if (startWith(scenar, cpos, m.first)){
+    if (startWith(scenar, cpos, m.first)) {
       if (mName.empty() || (mName.size() < m.first.size()))
         mName = m.first;
     }
@@ -884,9 +928,9 @@ string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) cons
 }
 string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd) const {
   size_t ssz = scenar.size(),
-         cp = cpos;
+    cp = cpos;
   int bordCnt = 0;
-  while (cp < ssz){
+  while (cp < ssz) {
     if (scenar[cp] == symbBegin) ++bordCnt;
     if (scenar[cp] == symbEnd) --bordCnt;
     if (bordCnt == 0) break;
@@ -896,20 +940,20 @@ string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char 
   if ((bordCnt == 0) && (cp > cpos)) {
     res = scenar.substr(cpos + 1, cp - cpos - 1);
     cpos = cp + 1;
-  }  
+  }
   return res;
 }
 
 bool InterpreterImpl::isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos) const {
   return (scenar.find('(', cpos) < maxpos) ||
-         (scenar.find(')', cpos) < maxpos) ||
-         (scenar.find('{', cpos) < maxpos) ||
-         (scenar.find('}', cpos) < maxpos) ||
-         (scenar.find(',', cpos) < maxpos) ||
-         (scenar.find(';', cpos) < maxpos) ||
-         (scenar.find('#', cpos) < maxpos) ||
-         (scenar.find('"', cpos) < maxpos) ||
-         (scenar.find('$', cpos) < maxpos);
+    (scenar.find(')', cpos) < maxpos) ||
+    (scenar.find('{', cpos) < maxpos) ||
+    (scenar.find('}', cpos) < maxpos) ||
+    (scenar.find(',', cpos) < maxpos) ||
+    (scenar.find(';', cpos) < maxpos) ||
+    (scenar.find('#', cpos) < maxpos) ||
+    (scenar.find('"', cpos) < maxpos) ||
+    (scenar.find('$', cpos) < maxpos);
 }
 bool InterpreterImpl::startWith(const string& str, size_t pos, const string& begin) const {
   return (str.find(begin, pos) - pos) == 0;
@@ -935,19 +979,19 @@ InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) c
   return nextOpr;
 }
 
-Interpreter::Interpreter(){
+Interpreter::Interpreter() {
   m_d = new InterpreterImpl();
 }
-Interpreter::~Interpreter(){
+Interpreter::~Interpreter() {
   delete m_d;
 }
-string Interpreter::cmd(string scenar){
+string Interpreter::cmd(string scenar) {
   return m_d->cmd(move(scenar));
 }
-bool Interpreter::addFunction(const string& name, UserFunction ufunc){
+bool Interpreter::addFunction(const string& name, UserFunction ufunc) {
   return m_d->addFunction(name, ufunc);
 }
-bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t priority){
+bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t priority) {
   return m_d->addOperator(name, uoper, priority);
 }
 std::map<std::string, std::string> Interpreter::allVariables() const {
@@ -966,5 +1010,5 @@ bool Interpreter::gotoOnLabel(const std::string& lname) {
   return m_d->gotoOnLabel(lname);
 }
 void Interpreter::exitFromScript() {
-    return m_d->exitFromScript();
+  return m_d->exitFromScript();
 }

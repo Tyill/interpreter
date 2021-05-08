@@ -64,6 +64,7 @@ $c += 5;
 Must start with '$'
 ```
 $a = 5;
+$b = "string";
 ```
 
 ### Expressions
@@ -78,11 +79,17 @@ $d = summ($a, $b, $c + 3, 4);
 ### Macros
 Macro declaration with '#macro name {body}'
 ```
-#macro myMac{ $c = 5; $d = $c + 5 + 6; } ;
+#macro myMac{ $c = 5; $d = $c + 5 + 6; };
 ```
 Insert a macro with '#'
 ```
 $c = 5; #myMac;
+```
+
+Insert a macro with params (index of param begin with 1)
+```
+#macro myMacr{ $a = $a + $1 + $1 + $2; };
+$a = 5;  #myMacr(3,4); // result 15
 ```
 
 ### Goto
