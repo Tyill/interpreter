@@ -42,8 +42,10 @@ public:
   Interpreter();
   ~Interpreter();
 
-  Interpreter(const Interpreter&) = delete;
-  Interpreter& operator=(const Interpreter&) = delete;
+  Interpreter(const Interpreter&);
+  Interpreter(Interpreter&&);
+  Interpreter& operator=(const Interpreter&);  
+  Interpreter& operator=(Interpreter&&);
 
   /// Add function
   /// @param name

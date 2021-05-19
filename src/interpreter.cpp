@@ -983,32 +983,54 @@ Interpreter::Interpreter() {
   m_d = new InterpreterImpl();
 }
 Interpreter::~Interpreter() {
-  delete m_d;
+  if (m_d) delete m_d;
+}
+Interpreter::Interpreter(const Interpreter& other) {
+  m_d = new InterpreterImpl();
+  *m_d = *other.m_d;
+}
+Interpreter::Interpreter(Interpreter&& other) {
+  m_d = other.m_d;
+  other.m_d = nullptr;
+}
+Interpreter& Interpreter::operator=(const Interpreter& other) {
+  if ((this != &other) && m_d)
+    *m_d = *other.m_d;
+  return *this;
+}
+Interpreter& Interpreter::operator=(Interpreter&& other) {
+  if (this != &other) {
+    if (m_d) delete m_d;
+
+    m_d = other.m_d;
+    other.m_d = nullptr;
+  }
+  return *this;
 }
 string Interpreter::cmd(string scenar) {
-  return m_d->cmd(move(scenar));
+  return m_d ? m_d->cmd(move(scenar)) : "";
 }
 bool Interpreter::addFunction(const string& name, UserFunction ufunc) {
-  return m_d->addFunction(name, ufunc);
+  return m_d ? m_d->addFunction(name, ufunc) : false;
 }
 bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t priority) {
-  return m_d->addOperator(name, uoper, priority);
+  return m_d ? m_d->addOperator(name, uoper, priority) : false;
 }
 std::map<std::string, std::string> Interpreter::allVariables() const {
-  return m_d->allVariables();
+  return m_d ? m_d->allVariables() : std::map<std::string, std::string>();
 }
 std::string Interpreter::variable(const std::string& vname) const {
-  return m_d->variable(vname);
+  return m_d ? m_d->variable(vname) : "";
 }
 bool Interpreter::setVariable(const std::string& vname, const std::string& value) {
-  return m_d->setVariable(vname, value);
+  return m_d ? m_d->setVariable(vname, value) : false;
 }
 bool Interpreter::setMacro(const std::string& mname, const std::string& script) {
-  return m_d->setMacro(mname, script);
+  return m_d ? m_d->setMacro(mname, script) : false;
 }
 bool Interpreter::gotoOnLabel(const std::string& lname) {
-  return m_d->gotoOnLabel(lname);
+  return m_d ? m_d->gotoOnLabel(lname) : false;
 }
 void Interpreter::exitFromScript() {
-  return m_d->exitFromScript();
+  if (m_d) m_d->exitFromScript();
 }
