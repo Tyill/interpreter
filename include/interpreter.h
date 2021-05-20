@@ -37,7 +37,7 @@ class Interpreter {
 public:
   using UserFunction = std::function<std::string(const std::vector<std::string>& args)>;
   using UserOperator = std::function<std::string(std::string& ioLeftOperand, std::string& ioRightOperand)>;
-
+    
   explicit 
   Interpreter();
   ~Interpreter();
@@ -90,10 +90,51 @@ public:
   /// @param lname label name
   /// @return true - ok
   bool gotoOnLabel(const std::string& lname);
-
+    
   /// Exit from script
   void exitFromScript();
   
+
+  //// Reflection part ////////////////////////////////////
+
+  enum class EntityType {
+    EXPRESSION,
+    OPERATOR,
+    WHILE,
+    IF,
+    ELSE,
+    ELSE_IF,
+    BREAK,
+    CONTINUE,
+    FUNCTION,
+    ARGUMENT,
+    VARIABLE,
+    VALUE,
+    GOTO,
+  };
+
+  /// Internal object
+  struct Entity {
+    size_t beginIndex;
+    size_t conditionEndIndex;
+    size_t bodyEndIndex;
+    EntityType type;
+    std::string name;
+    std::string value;
+  };
+
+  /// Get all entities
+  std::vector<Entity> allEntities();
+
+  /// Current entity
+  Entity currentEntity();
+
+  /// Go-to on entity
+  /// @return true - ok
+  bool gotoOnEntity(size_t beginIndex);
+
+  //// Reflection part ////////////////////////////////////
+
 private:
   InterpreterImpl* m_d = nullptr;
 };

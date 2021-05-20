@@ -42,7 +42,9 @@ public:
   bool setMacro(const std::string& mname, const std::string& script);
   bool gotoOnLabel(const std::string& lname);
   void exitFromScript();
-
+  std::vector<Interpreter::Entity> allEntities();
+  Interpreter::Entity currentEntity();
+  bool gotoOnEntity(size_t iBegin);
 private:
   enum class Keyword {
     INSTRUCTION,
@@ -80,7 +82,8 @@ private:
   map<size_t, vector<Operatr>> m_soper;
   vector<Expression> m_expr;
   string m_err, m_prevScenar, m_result;
-  size_t m_igoto = size_t(-1);
+  size_t m_gotoIndex = size_t(-1);
+  size_t m_currentIndex = 0;
   bool m_exit = false;
 
   string calcOperation(Keyword mainKeyword, size_t iExpr);
@@ -100,6 +103,7 @@ private:
   bool isNumber(const string& s) const;
   bool isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos) const;
   Keyword keywordByName(const string& oprName) const;
+  Interpreter::EntityType keywordToEntityType(Keyword keyw) const;
   string getNextParam(const string& scenar, size_t& cpos, char symb) const;
   string getOperatorAtFirst(const string& scenar, size_t& cpos) const;
   string getFunctionAtFirst(const string& scenar, size_t& cpos) const;
@@ -136,17 +140,20 @@ string InterpreterImpl::cmd(string scenar) {
   m_exit = false;
   for (size_t i = 0; i < m_expr.size();) {
 
+    m_currentIndex = i;
     m_result = calcOperation(m_expr[i].keyw, i);
     i = max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
 
-    if (m_igoto != size_t(-1)) {
-      for (size_t j = m_igoto; j < i; ++j)
+    if (m_gotoIndex != size_t(-1)) {
+      for (size_t j = m_gotoIndex; j < i; ++j)
         m_expr[j].iOperator = size_t(-1);
-      i = m_igoto;
-      m_igoto = size_t(-1);
+      i = m_gotoIndex;
+      m_gotoIndex = size_t(-1);
     }
     if (m_exit) break;
   }
+  m_currentIndex = 0;
+
   return m_result;
 }
 
@@ -252,11 +259,34 @@ bool InterpreterImpl::setMacro(const std::string& mname, const std::string& scri
 bool InterpreterImpl::gotoOnLabel(const std::string& lname) {
   bool exist = m_label.find(lname) != m_label.end();
   if (exist)
-    m_igoto = m_label[lname];
+    m_gotoIndex = m_label[lname];
   return exist;
 }
 void InterpreterImpl::exitFromScript() {
   m_exit = true;
+}
+std::vector<Interpreter::Entity> InterpreterImpl::allEntities() {
+  std::vector<Interpreter::Entity> res;
+  for (size_t i = 0; i < m_expr.size(); ++i) {    
+    const auto& exp = m_expr[i];
+    res.emplace_back(Interpreter::Entity{
+      i, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
+    });
+  }
+  return res;
+}
+Interpreter::Entity InterpreterImpl::currentEntity() {
+  const auto& exp = m_expr[m_currentIndex];
+  return Interpreter::Entity{
+      m_currentIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
+  };
+}
+bool InterpreterImpl::gotoOnEntity(size_t beginIndex) {
+  if (beginIndex < m_expr.size()) {
+    m_gotoIndex = beginIndex;
+    return true;
+  }
+  return false;
 }
 
 string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
@@ -299,7 +329,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
     break;
   case Keyword::GOTO: {
     if (m_label.find(m_expr[iExpr].params) != m_label.end())
-      m_igoto = m_label[m_expr[iExpr].params];
+      m_gotoIndex = m_label[m_expr[iExpr].params];
   }
     break;
   default:
@@ -364,7 +394,7 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
         break;
       case Keyword::GOTO: {
         if (m_label.find(m_expr[i].params) != m_label.end()) {
-          m_igoto = m_label[m_expr[i].params];
+          m_gotoIndex = m_label[m_expr[i].params];
         }
       }
         break;
@@ -373,12 +403,12 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
       }
       if (isBreak || m_exit) break;
 
-      if (m_igoto != size_t(-1)) {
-        if ((iCondEnd <= m_igoto) && (m_igoto < iBodyEnd)) {
-          for (size_t j = m_igoto; j < i; ++j)
+      if (m_gotoIndex != size_t(-1)) {
+        if ((iCondEnd <= m_gotoIndex) && (m_gotoIndex < iBodyEnd)) {
+          for (size_t j = m_gotoIndex; j < i; ++j)
             m_expr[j].iOperator = size_t(-1);
-          i = m_igoto;
-          m_igoto = size_t(-1);
+          i = m_gotoIndex;
+          m_gotoIndex = size_t(-1);
         }
         else break;
       }
@@ -978,6 +1008,24 @@ InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) c
   else if (oprName == "continue") nextOpr = Keyword::CONTINUE;
   return nextOpr;
 }
+Interpreter::EntityType InterpreterImpl::keywordToEntityType(Keyword keyw) const {
+  switch (keyw){
+  case InterpreterImpl::Keyword::EXPRESSION: return Interpreter::EntityType::EXPRESSION;
+  case InterpreterImpl::Keyword::OPERATOR:   return Interpreter::EntityType::OPERATOR;
+  case InterpreterImpl::Keyword::WHILE:      return Interpreter::EntityType::WHILE;
+  case InterpreterImpl::Keyword::IF:         return Interpreter::EntityType::IF;
+  case InterpreterImpl::Keyword::ELSE:       return Interpreter::EntityType::ELSE;
+  case InterpreterImpl::Keyword::ELSE_IF:    return Interpreter::EntityType::ELSE_IF;
+  case InterpreterImpl::Keyword::BREAK:      return Interpreter::EntityType::BREAK;
+  case InterpreterImpl::Keyword::CONTINUE:   return Interpreter::EntityType::CONTINUE;
+  case InterpreterImpl::Keyword::FUNCTION:   return Interpreter::EntityType::FUNCTION;
+  case InterpreterImpl::Keyword::ARGUMENT:   return Interpreter::EntityType::ARGUMENT;
+  case InterpreterImpl::Keyword::VARIABLE:   return Interpreter::EntityType::VARIABLE;
+  case InterpreterImpl::Keyword::VALUE:      return Interpreter::EntityType::VALUE;
+  case InterpreterImpl::Keyword::GOTO:       return Interpreter::EntityType::GOTO;
+  default:                                   return Interpreter::EntityType::EXPRESSION;
+  }  
+}
 
 Interpreter::Interpreter() {
   m_d = new InterpreterImpl();
@@ -987,14 +1035,15 @@ Interpreter::~Interpreter() {
 }
 Interpreter::Interpreter(const Interpreter& other) {
   m_d = new InterpreterImpl();
-  *m_d = *other.m_d;
+  if (other.m_d)
+    *m_d = *other.m_d;
 }
 Interpreter::Interpreter(Interpreter&& other) {
   m_d = other.m_d;
   other.m_d = nullptr;
 }
 Interpreter& Interpreter::operator=(const Interpreter& other) {
-  if ((this != &other) && m_d)
+  if ((this != &other) && m_d && other.m_d)
     *m_d = *other.m_d;
   return *this;
 }
@@ -1033,4 +1082,13 @@ bool Interpreter::gotoOnLabel(const std::string& lname) {
 }
 void Interpreter::exitFromScript() {
   if (m_d) m_d->exitFromScript();
+}
+std::vector<Interpreter::Entity> Interpreter::allEntities() {
+  return m_d ? m_d->allEntities() : std::vector<Interpreter::Entity>();
+}
+Interpreter::Entity Interpreter::currentEntity() {
+  return m_d ? m_d->currentEntity() : Interpreter::Entity{0};
+}
+bool Interpreter::gotoOnEntity(size_t beginIndex) {
+  return m_d ? m_d->gotoOnEntity(beginIndex) : false;
 }
