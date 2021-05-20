@@ -136,6 +136,19 @@ public:
     pIr->setVariable("$b", to_string(res));
     return to_string(res);
   });
+  ir.addFunction("range", [pIr](const vector<string>& args) ->string {
+    auto entity = pIr->currentEntity();
+    
+    int maxv = 0;
+    if (!args.empty() && isNumber(args[0])) 
+      maxv = stoi(args[0]); 
+
+    int cval = 0;
+    if (isNumber(entity.value)) 
+      cval = stoi(entity.value);
+    
+    return cval < maxv ? to_string(cval + 1) : "0";
+  });
   }
   ~InprTest() {   
   }
@@ -188,6 +201,9 @@ TEST_F(InprTest, gotoTest){
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; while($a > 0){ $a -= 1; if ($a == 2){ goto l_jmp;}} l_jmp: $a; ") == "2");
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; goto l_cyc; l_jmp: goto l_exit; l_cyc: while($a > 0){ $a -= 1; if ($a == 2){ goto l_jmp;};}; l_exit: $a;") == "2");
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; while($a > 0){goto l_jmp1; l_jmp: $a = 10; goto l_exit; l_jmp1: $a -= 1; if ($a == 2){ goto l_jmp;}} l_exit: $a; ") == "10");
+}
+TEST_F(InprTest, reflectionTest){ 
+  EXPECT_TRUE(ir.cmd("$a = 0; while(range(100)) $a += 1; $a;") == "100");
 }
 
 int main(int argc, char* argv[]){

@@ -140,7 +140,6 @@ string InterpreterImpl::cmd(string scenar) {
   m_exit = false;
   for (size_t i = 0; i < m_expr.size();) {
 
-    m_currentIndex = i;
     m_result = calcOperation(m_expr[i].keyw, i);
     i = max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
 
@@ -152,7 +151,6 @@ string InterpreterImpl::cmd(string scenar) {
     }
     if (m_exit) break;
   }
-  m_currentIndex = 0;
 
   return m_result;
 }
@@ -318,7 +316,8 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
       }
       i = m_expr[i].iBodyEnd;
     }
-    g_result = m_ufunc[m_expr[iExpr].params](args);
+    m_currentIndex = iExpr;
+    g_result = m_expr[iExpr].result = m_ufunc[m_expr[iExpr].params](args);
   }
     break;
   case Keyword::WHILE:
@@ -487,6 +486,7 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
       else
         rValue = m_expr[pRightOperd->iOperator].result;
     }
+    m_currentIndex = iOp;
     g_result = m_expr[iOp].result = m_uoper[m_expr[iOp].params].first(lValue, rValue);
 
     if (pLeftOperd && (pLeftOperd->keyw == Keyword::VARIABLE) && (pLeftOperd->iOperator == size_t(-1))) {
