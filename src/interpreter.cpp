@@ -591,10 +591,21 @@ bool InterpreterImpl::parseInstructionScenar(const string& scenar, size_t gpos) 
     }   
 
   size_t iIF = size_t(-1);
-  while (cpos < ssz) {
+  while (cpos < ssz) {    
     if (scenar[cpos] == ';') {
       ++cpos;
     }
+
+    size_t cposFunc = cpos,
+           cposOpr = cpos;
+    if (!getFunctionAtFirst(scenar, cposFunc).empty() || !getOperatorAtFirst(scenar, cposOpr).empty()) {
+        m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
+
+        const string expr = getNextParam(scenar, cpos, ';');
+        CHECK_PARSE_RETURN(expr.empty() || !parseExpressionScenar(expr, gpos + cpos - expr.size() - 1));
+
+        iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+    }     
     else if (startWith(scenar, cpos, "while") || startWith(scenar, cpos, "if") || startWith(scenar, cpos, "elseif")) {
       const string kname = getNextParam(scenar, cpos, '(');
       CHECK_PARSE_RETURN(kname.empty());
@@ -626,7 +637,7 @@ bool InterpreterImpl::parseInstructionScenar(const string& scenar, size_t gpos) 
       }
       iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
 
-      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+      if ((cpos < ssz) && (scenar[cpos] == ';')) ++cpos;
     }
     else if (startWith(scenar, cpos, "else")) {
       cpos += 4;
@@ -646,7 +657,7 @@ bool InterpreterImpl::parseInstructionScenar(const string& scenar, size_t gpos) 
       m_expr[iExpr].iConditionEnd = iExpr + 1;
       iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
 
-      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+      if ((cpos < ssz) && (scenar[cpos] == ';')) ++cpos;
     }
     else if (startWith(scenar, cpos, "break") || startWith(scenar, cpos, "continue")) {
       const string kname = getNextParam(scenar, cpos, ';');
@@ -666,7 +677,7 @@ bool InterpreterImpl::parseInstructionScenar(const string& scenar, size_t gpos) 
 
       m_macro["#" + mname] = mvalue;
 
-      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+      if ((cpos < ssz) && (scenar[cpos] == ';')) ++cpos;
     }
     else if (scenar[cpos] == '#') {               // macro definition
       const string mname = getMacroAtFirst(scenar, cpos);
@@ -714,8 +725,8 @@ bool InterpreterImpl::parseExpressionScenar(const string& scenar, size_t gpos) {
     iExpr = m_expr.size(),
     cpos = 0;
 
-  while (cpos < ssz) {
-    string oprName, fName;
+  string oprName, fName;
+  while (cpos < ssz) {    
     if (scenar[cpos] == '$') {
       size_t posmem = cpos;
       oprName = getNextOperator(scenar, cpos);
@@ -753,7 +764,7 @@ bool InterpreterImpl::parseExpressionScenar(const string& scenar, size_t gpos) {
 
       iExpr = m_expr[iExpr].iConditionEnd = m_expr.size();
 
-      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+      if ((cpos < ssz) && (scenar[cpos] == ';')) ++cpos;
     }
     else if (scenar[cpos] == '(') {
       const string expr = getIntroScenar(scenar, cpos, '(', ')');
@@ -764,7 +775,7 @@ bool InterpreterImpl::parseExpressionScenar(const string& scenar, size_t gpos) {
 
       iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
 
-      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+      if ((cpos < ssz) && (scenar[cpos] == ';')) ++cpos;
     }
     else if (scenar[cpos] == '#') {
       const string mname = getMacroAtFirst(scenar, cpos);
@@ -779,7 +790,7 @@ bool InterpreterImpl::parseExpressionScenar(const string& scenar, size_t gpos) {
 
       iExpr = m_expr.size();
 
-      if ((cpos < scenar.size()) && (scenar[cpos] == ';')) ++cpos;
+      if ((cpos < ssz) && (scenar[cpos] == ';')) ++cpos;
     }
     else if (!(oprName = getOperatorAtFirst(scenar, cpos)).empty()) {
       CHECK_PARSE_RETURN(m_uoper.find(oprName) == m_uoper.end());
@@ -822,7 +833,7 @@ bool InterpreterImpl::parseExpressionScenar(const string& scenar, size_t gpos) {
           m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
         }
         else {
-          if (isFindKeySymbol(scenar, cpos, scenar.size())) {
+          if (isFindKeySymbol(scenar, cpos, ssz)) {
             m_err = "Error scenar pos " + to_string(cpos + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
             return false;
           }
