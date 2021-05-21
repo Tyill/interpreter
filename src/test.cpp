@@ -195,6 +195,7 @@ TEST_F(InprTest, functionTest){
 TEST_F(InprTest, macrosTest){   
   EXPECT_TRUE(ir.cmd("$a = 5; #macro myMacr{$a = $a + 2;} #myMacr; #myMacr; #myMacr;") == "11");
   EXPECT_TRUE(ir.cmd("$a = 5; #macro myMacr{ $a = $a + $1 + $1 + $2; } #myMacr(3,4);") == "15");
+  EXPECT_TRUE(ir.cmd("#macro RANGE{while(range($1))}; $a = 0; #RANGE(100) $a += 1; $a;") == "100");
 }
 TEST_F(InprTest, gotoTest){   
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; goto l_jmp; $a = summ($a, $b); l_jmp: $a;") == "5");
