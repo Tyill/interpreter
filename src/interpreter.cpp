@@ -122,15 +122,15 @@ string InterpreterImpl::cmd(string scenar) {
   if (scenar.back() != ';') scenar += ';';
 
   if (m_prevScenar != scenar) {
-    m_prevScenar.clear();
+    m_prevScenar = scenar;
     m_expr.clear();
     m_label.clear();
     m_soper.clear();
     m_err.clear();
     if (!checkScenar(scenar, m_err) || !parseInstructionScenar(scenar, 0)) {
+      m_prevScenar.clear();
       return m_err;
-    }
-    m_prevScenar = scenar;
+    }    
   }
   else {
     for (auto& ex : m_expr)
