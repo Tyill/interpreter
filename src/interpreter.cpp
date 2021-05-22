@@ -274,6 +274,8 @@ std::vector<Interpreter::Entity> InterpreterImpl::allEntities() {
   return res;
 }
 Interpreter::Entity InterpreterImpl::currentEntity() {
+  if (m_currentIndex >= m_expr.size())
+    return Interpreter::Entity{0};
   const auto& exp = m_expr[m_currentIndex];
   return Interpreter::Entity{
       m_currentIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result

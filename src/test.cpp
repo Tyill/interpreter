@@ -137,12 +137,11 @@ public:
     return to_string(res);
   });
   ir.addFunction("range", [pIr](const vector<string>& args) ->string {
-    auto entity = pIr->currentEntity();
-    
     int maxv = 0;
     if (!args.empty() && isNumber(args[0])) 
       maxv = stoi(args[0]); 
 
+    auto entity = pIr->currentEntity();
     int cval = 0;
     if (isNumber(entity.value)) 
       cval = stoi(entity.value);
