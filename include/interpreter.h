@@ -74,6 +74,12 @@ public:
   /// @return value
   std::string variable(const std::string& vname) const;
 
+  /// Run of user function
+  /// @param fname
+  /// @param args
+  /// @return result
+  std::string runFunction(const std::string& fname, const std::vector<std::string>& args);
+
   /// Set value of variable
   /// @param vname
   /// @param value

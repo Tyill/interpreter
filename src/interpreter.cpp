@@ -38,6 +38,7 @@ public:
   string cmd(string scenar);
   std::map<std::string, std::string> allVariables() const;
   std::string variable(const std::string& vname) const;
+  std::string runFunction(const std::string& fname, const std::vector<std::string>& args);
   bool setVariable(const std::string& vname, const std::string& value);
   bool setMacro(const std::string& mname, const std::string& script);
   bool gotoOnLabel(const std::string& lname);
@@ -249,6 +250,9 @@ std::string InterpreterImpl::variable(const std::string& vname) const {
 bool InterpreterImpl::setVariable(const std::string& vname, const std::string& value) {
   m_var[vname] = value;
   return true;
+}
+std::string InterpreterImpl::runFunction(const std::string& fname, const std::vector<std::string>& args) {
+  return m_ufunc.count(fname) ? m_ufunc[fname](args) : "";
 }
 bool InterpreterImpl::setMacro(const std::string& mname, const std::string& script) {
   m_macro[mname] = script;
@@ -1086,6 +1090,9 @@ std::map<std::string, std::string> Interpreter::allVariables() const {
 }
 std::string Interpreter::variable(const std::string& vname) const {
   return m_d ? m_d->variable(vname) : "";
+}
+std::string Interpreter::runFunction(const std::string& fname, const std::vector<std::string>& args) {
+  return m_d ? m_d->runFunction(fname, args) : "";
 }
 bool Interpreter::setVariable(const std::string& vname, const std::string& value) {
   return m_d ? m_d->setVariable(vname, value) : false;
