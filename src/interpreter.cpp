@@ -304,7 +304,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
     g_result = m_expr[iExpr].params;
     break;
   case Keyword::EXPRESSION:
-    g_result = calcExpression(iExpr + 1, m_expr[iExpr].iBodyEnd);
+    g_result = m_expr[iExpr].result = calcExpression(iExpr + 1, m_expr[iExpr].iBodyEnd);
     break;
   case Keyword::FUNCTION: {
     size_t iBegin = iExpr + 1;
@@ -313,13 +313,14 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
     for (size_t i = iBegin; i < iEnd;) {
       if ((i + 1 == m_expr[i].iBodyEnd - 1) && ((m_expr[i + 1].keyw == Keyword::VARIABLE) || (m_expr[i + 1].keyw == Keyword::VALUE))) {
         if (m_expr[i + 1].keyw == Keyword::VARIABLE)
-          args.emplace_back(m_var[m_expr[i + 1].params]);
+          m_expr[i].result = m_var[m_expr[i + 1].params];
         else
-          args.emplace_back(m_expr[i + 1].params);
+          m_expr[i].result = m_expr[i + 1].params;
       }
-      else {
-        args.emplace_back(calcExpression(i + 1, m_expr[i].iBodyEnd));
+      else{
+        m_expr[i].result = calcExpression(i + 1, m_expr[i].iBodyEnd); 
       }
+      args.emplace_back(m_expr[i].result);
       i = m_expr[i].iBodyEnd;
     }
     m_currentIndex = iExpr;
@@ -352,7 +353,8 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
     size_t iIF = stoul(m_expr[iExpr].params);
     if (iIF != size_t(-1)) {
       string ifCondn = m_expr[iIF].result;
-      if ((isNumber(ifCondn) && (stoi(ifCondn) != 0)) || (!isNumber(ifCondn) && !ifCondn.empty())) {
+      bool isNum = isNumber(ifCondn);
+      if ((isNum && (stoi(ifCondn) != 0)) || (!isNum && !ifCondn.empty())) {
         return g_result;
       }
     }
@@ -362,13 +364,14 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
   if (iBegin < iCondEnd) {
     condn = m_expr[iExpr].result = calcExpression(iBegin, iCondEnd);
   }
-  if ((m_expr[iExpr].keyw == Keyword::ELSE) || (isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
+  bool isNum = isNumber(condn);
+  if ((m_expr[iExpr].keyw == Keyword::ELSE) || (isNum && (stoi(condn) != 0)) || (!isNum && !condn.empty())) {
     bool isContinue = false,
       isBreak = false;
     for (size_t i = iCondEnd; i < iBodyEnd;) {
       switch (m_expr[i].keyw) {
       case Keyword::EXPRESSION: {
-        calcExpression(i + 1, m_expr[i].iBodyEnd);
+        m_expr[i].result = calcExpression(i + 1, m_expr[i].iBodyEnd);
         i = m_expr[i].iBodyEnd;
       }
         break;
@@ -376,7 +379,7 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
       case Keyword::IF:
       case Keyword::ELSE:
       case Keyword::ELSE_IF: {
-        string res = calcOperation(m_expr[i].keyw, i);
+        string res = calcCondition(i);
         if (m_expr[i].keyw != Keyword::WHILE) {
           isBreak = res == "break";
           isContinue = res == "continue";
@@ -426,8 +429,9 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
         for (size_t j = iBegin; j < iCondEnd; ++j)
           m_expr[j].iOperator = size_t(-1);
 
-        string condn = calcExpression(iBegin, iCondEnd);
-        if ((isNumber(condn) && (stoi(condn) != 0)) || (!isNumber(condn) && !condn.empty())) {
+        const string& condn = m_expr[iExpr].result = calcExpression(iBegin, iCondEnd);
+        bool isNum = isNumber(condn);
+        if ((isNum && (stoi(condn) != 0)) || (!isNum && !condn.empty())) {
           for (size_t j = iCondEnd; j < iBodyEnd; ++j)
             m_expr[j].iOperator = size_t(-1);
           i = iCondEnd;
@@ -496,10 +500,10 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
     g_result = m_expr[iOp].result = m_uoper[m_expr[iOp].params].first(lValue, rValue);
 
     if (pLeftOperd && (pLeftOperd->keyw == Keyword::VARIABLE) && (pLeftOperd->iOperator == size_t(-1))) {
-      m_var[pLeftOperd->params] = lValue;
+      pLeftOperd->result = m_var[pLeftOperd->params] = lValue;
     }
     if (pRightOperd && (pRightOperd->keyw == Keyword::VARIABLE) && (pRightOperd->iOperator == size_t(-1))) {
-      m_var[pRightOperd->params] = rValue;
+      pRightOperd->result = m_var[pRightOperd->params] = rValue;
     }
     if (pLeftOperd) {
       if (pLeftOperd->iOperator != size_t(-1)) {
