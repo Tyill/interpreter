@@ -48,7 +48,6 @@ int main(int argc, char* argv[])
   InterpreterBaseLib::ComparisonOperations co(ir);
   InterpreterBaseLib::BaseContainer bc(ir);
 
-
   ir.addFunction("summ", [](const vector<string>& args) ->string {
     int res = 0;
     for (auto& v : args) {

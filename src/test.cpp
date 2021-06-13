@@ -24,6 +24,9 @@
 //
 #include <gtest/gtest.h>
 #include "../include/interpreter.h"
+#include "../include/base_library/arithmetic_operations.h"
+#include "../include/base_library/comparison_operations.h"
+#include "../include/base_library/base_container.h"
 
 using namespace std;
 
@@ -38,84 +41,11 @@ bool isNumber(const string& s) {
 
 class InprTest : public ::testing::Test {
 public:
-  InprTest() {     
-  
-  ir.addOperator("*", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return to_string(stoi(leftOpd) * stoi(rightOpd));
-    else
-      return "0";
-  }, 0);
-  ir.addOperator("/", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return to_string(stoi(leftOpd) / stoi(rightOpd));
-    else
-      return "0";
-  }, 0);
-  ir.addOperator("+", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return to_string(stoi(leftOpd) + stoi(rightOpd));
-    else
-      return leftOpd + rightOpd;
-  }, 1);
-  ir.addOperator("-", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return to_string(stoi(leftOpd) - stoi(rightOpd));
-    else
-      return "0";
-  }, 1);
-  ir.addOperator(">", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return stoi(leftOpd) > stoi(rightOpd) ? "1" : "0";
-    else
-      return leftOpd.size() > rightOpd.size() ? "1" : "0";
-  }, 2);
-  ir.addOperator("<", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return stoi(leftOpd) < stoi(rightOpd) ? "1" : "0";
-    else
-      return leftOpd.size() < rightOpd.size() ? "1" : "0";
-  }, 2);
-  ir.addOperator("==", [](string& leftOpd, string& rightOpd) ->string {
-    return leftOpd == rightOpd ? "1" : "0";
-  }, 3);
-  ir.addOperator("!=", [](string& leftOpd, string& rightOpd) ->string {
-    return leftOpd != rightOpd ? "1" : "0";
-  }, 3);  
-  ir.addOperator("+=", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd)){
-      leftOpd = to_string(stoi(leftOpd) + stoi(rightOpd));
-      return leftOpd;
-    }    
-    else{
-      leftOpd += rightOpd;
-      return leftOpd;
-    }
-  }, 4);
-  ir.addOperator("-=", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd)){
-      leftOpd = to_string(stoi(leftOpd) - stoi(rightOpd));
-      return leftOpd;
-    }     
-    else{
-      leftOpd += rightOpd;
-      return leftOpd;
-    }
-  }, 4);
-  ir.addOperator("++", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd)){
-      leftOpd = to_string(stoi(leftOpd) + 1);
-      return leftOpd;
-    }    
-    if (isNumber(rightOpd)){
-      rightOpd = to_string(stoi(rightOpd) + 1);
-    }
-    return rightOpd;
-  }, 4);
-  ir.addOperator("=", [](string& leftOpd, string& rightOpd) ->string {
-    leftOpd = rightOpd;
-    return leftOpd;
-  }, 5);
+  InprTest(): 
+  ao_ir(ir),
+  co_ir(ir),
+  bc_ir(ir){
+    
   ir.addOperator("->", [](string& leftOpd, string& rightOpd) ->string {
     rightOpd = leftOpd;
     return rightOpd;
@@ -152,6 +82,9 @@ public:
   ~InprTest() {   
   }
   Interpreter ir;
+  InterpreterBaseLib::ArithmeticOperations ao_ir;
+  InterpreterBaseLib::ComparisonOperations co_ir;
+  InterpreterBaseLib::BaseContainer bc_ir;
 };
 
 TEST_F(InprTest, operatorTest){   
@@ -204,6 +137,10 @@ TEST_F(InprTest, gotoTest){
 }
 TEST_F(InprTest, reflectionTest){ 
   EXPECT_TRUE(ir.cmd("$a = 0; while(range(100)) $a += 1; $a;") == "100");
+}
+TEST_F(InprTest, containerTest){ 
+  EXPECT_TRUE(ir.cmd("a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a.size()") == "3");
+  EXPECT_TRUE(ir.cmd("b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)") == "myValueTwo");
 }
 
 int main(int argc, char* argv[]){

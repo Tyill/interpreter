@@ -202,7 +202,6 @@ namespace InterpreterBaseLib {
       return out;
     }
 
-
   protected:
     Interpreter& m_intr;
     std::map<std::string, std::vector<std::string>> m_vectorContr;
