@@ -24,6 +24,9 @@
 //
 
 #include "../include/interpreter.h"
+#include "../include/base_library/arithmetic_operations.h"
+#include "../include/base_library/comparison_operations.h"
+#include "../include/base_library/base_container.h"
 #include <cctype>
 
 using namespace std;
@@ -41,60 +44,10 @@ int main(int argc, char* argv[])
 {  
   Interpreter ir;
 
-  ir.addOperator("*", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return to_string(stoi(leftOpd) * stoi(rightOpd));
-    else
-      return "0";
-  }, 0);
+  InterpreterBaseLib::ArithmeticOperations ao(ir);
+  InterpreterBaseLib::ComparisonOperations co(ir);
+  InterpreterBaseLib::BaseContainer bc(ir);
 
-  ir.addOperator("/", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return to_string(stoi(leftOpd) / stoi(rightOpd));
-    else
-      return "0";
-  }, 0);
-
-  ir.addOperator("+", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return to_string(stoi(leftOpd) + stoi(rightOpd));
-    else
-      return leftOpd + rightOpd;
-  }, 1);
-
-  ir.addOperator("-", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return to_string(stoi(leftOpd) - stoi(rightOpd));
-    else
-      return "0";
-  }, 1);
-
-  ir.addOperator("==", [](string& leftOpd, string& rightOpd) ->string {
-    return leftOpd == rightOpd ? "1" : "0";
-  }, 2);
-
-  ir.addOperator("!=", [](string& leftOpd, string& rightOpd) ->string {
-    return leftOpd != rightOpd ? "1" : "0";
-  }, 2);
-
-  ir.addOperator(">", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return stoi(leftOpd) > stoi(rightOpd) ? "1" : "0";
-    else
-      return leftOpd.size() > rightOpd.size() ? "1" : "0";
-  }, 2);
-
-  ir.addOperator("<", [](string& leftOpd, string& rightOpd) ->string {
-    if (isNumber(leftOpd) && isNumber(rightOpd))
-      return stoi(leftOpd) < stoi(rightOpd) ? "1" : "0";
-    else
-      return leftOpd.size() < rightOpd.size() ? "1" : "0";
-  }, 2);
-   
-  ir.addOperator("=", [](string& leftOpd, string& rightOpd) ->string {
-    leftOpd = rightOpd;
-    return leftOpd;
-  }, 100);
 
   ir.addFunction("summ", [](const vector<string>& args) ->string {
     int res = 0;
@@ -104,13 +57,27 @@ int main(int argc, char* argv[])
     return to_string(res);
   });
 
+  ir.addFunction("print", [](const vector<string>& args) ->string {
+    for (auto& v : args) {
+      printf("%s\n", v.c_str());
+    }
+    return "";
+  });
+
   string scenar = "$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;";
-
   string res = ir.cmd(scenar); // 9
-
+  
   scenar = "$a = 5; $b = 2; $c = summ($a, ($a + ($a * ($b + $a))), summ(5)); $c;";
-
   res = ir.cmd(scenar); // 50
+
+  scenar = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a.size()";
+  res = ir.cmd(scenar); // 3
+
+  scenar = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
+  res = ir.cmd(scenar); // myValueTwo
+
+  scenar = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
+  res = ir.cmd(scenar); // 1 2 3
 
   return 0;
 }

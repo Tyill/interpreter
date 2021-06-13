@@ -232,12 +232,12 @@ bool InterpreterImpl::checkScenar(const string& scenar, string& err) const {
 
 bool InterpreterImpl::addFunction(const string& name, Interpreter::UserFunction ufunc) {
   if (name.empty() || (keywordByName(name) != Keyword::INSTRUCTION) || isFindKeySymbol(name, 0, name.size())) return false;
-  m_ufunc.insert({ name, move(ufunc) });
+  m_ufunc[name] = move(ufunc);
   return true;
 }
 bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority) {
   if (name.empty() || (keywordByName(name) != Keyword::INSTRUCTION) || isFindKeySymbol(name, 0, name.size())) return false;
-  m_uoper.insert({ name, {move(uopr), priority} });
+  m_uoper[name] = {move(uopr), priority};
   return true;
 }
 
