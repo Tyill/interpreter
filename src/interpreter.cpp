@@ -814,43 +814,20 @@ bool InterpreterImpl::parseExpressionScenar(string& scenar, size_t gpos) {
     else {  // value
       if (scenar[cpos] == '"') {
         ++cpos;
-        const string value = getNextParam(scenar, cpos, '"');
-
-        size_t posmem = cpos;
-        oprName = getNextOperator(scenar, cpos);
-
-        if (!oprName.empty()) {
-          if (isFindKeySymbol(scenar, posmem, cpos - oprName.size())) {
-            m_err = "Error scenar pos " + to_string(posmem + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
-            return false;
-          }
-          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value }); ++iExpr;
-          m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-        }
-        else {
-          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value });
-          break;
-        }
+        const string value = getNextParam(scenar, cpos, '"');       
+        m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value }); ++iExpr;       
       }
       else {
         size_t posmem = cpos;
         oprName = getNextOperator(scenar, cpos);
 
         if (!oprName.empty()) {
-          if (isFindKeySymbol(scenar, posmem, cpos - oprName.size())) {
-            m_err = "Error scenar pos " + to_string(posmem + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
-            return false;
-          }
           string value = scenar.substr(posmem, cpos - posmem - oprName.size());
 
           m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), value }); ++iExpr;
           m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
         }
         else {
-          if (isFindKeySymbol(scenar, cpos, scenar.size())) {
-            m_err = "Error scenar pos " + to_string(cpos + gpos) + " src line " + to_string(__LINE__) + ": unknown operator";
-            return false;
-          }
           string value = scenar.substr(cpos);
 
           if (value.back() == ';') value.pop_back();
