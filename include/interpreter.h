@@ -60,10 +60,19 @@ public:
   /// return true - ok
   bool addOperator(const std::string& name, UserOperator uopr, uint32_t priority);
    
-  /// Execute script
+  /// Execute script (== parseScript + runScript)
   /// @param script
   /// @return result or error
   std::string cmd(std::string script);
+
+  /// Parse script
+  /// @param script
+  /// return true - ok
+  bool parseScript(std::string script, std::string& outErr);
+
+  /// Run script
+  /// return result
+  std::string runScript();
 
   /// All variables
   /// @return vname, value

@@ -65,6 +65,8 @@ Must start with '$'
 ```
 $a = 5;
 $b = "string";
+
+$a{12}   // initializer
 ```
 
 ### Expressions
@@ -171,6 +173,12 @@ int main(int argc, char* argv[])
 
   scenar = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
   res = ir.cmd(scenar); // 1 2 3
+  
+  scenar = "a = Vector{1 + 2, 2 + 3, 3 + 4}; while($v : a) print($v);";
+  res = ir.cmd(scenar); // 3 5 7
+
+  scenar = "$b = 12; c = Map{ one : $b + 5, two : 2}; while($v : c) print($v);";
+  res = ir.cmd(scenar); // one 17 two 2
 
   return 0;
 }

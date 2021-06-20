@@ -2,6 +2,7 @@
 #include "../../include/interpreter.h"
 
 #include <cctype>
+#include <sstream>
 
 namespace InterpreterBaseLib {
 
@@ -17,15 +18,93 @@ namespace InterpreterBaseLib {
       return !s.empty();
     }
 
+    std::vector<std::string> split(const std::string& str, char sep) {
+      std::vector<std::string> res;
+      std::istringstream iss(str);
+      std::string token;
+      while (std::getline(iss, token, sep)) {
+        res.emplace_back(token);
+      }
+      return res;
+    }
+
     BaseContainer(Interpreter& ir):
       m_intr(ir)
     {      
       ir.addOperator("=", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {        
-        if (rightOpd == "Vector") {
+        
+        auto startWith = [](const std::string& str, const std::string& begin) -> bool {
+          return str.find(begin) == 0;
+        };
+        
+        if (startWith(rightOpd, "Vector")) {
           m_vectorContr[leftOpd] = std::vector<std::string>();
+
+          auto entityRight = m_intr.allEntities()[m_intr.currentEntity().beginIndex + 1];
+
+          std::string& initBody = entityRight.value;
+
+          if (!initBody.empty()) {
+                       
+            size_t ssz = initBody.size(),
+              cpos = 0,
+              cp = 0;
+            int bordCnt = 0;
+
+            Interpreter intrCopy = m_intr;
+
+            while (cp < ssz) {
+              if (initBody[cp] == '(') ++bordCnt;
+              if (initBody[cp] == ')') --bordCnt;
+              if (((initBody[cp] == ',') || (cp == ssz - 1)) && (bordCnt == 0)) {
+
+                if (cp == ssz - 1) ++cp;
+
+                const std::string arg = initBody.substr(cpos, cp - cpos);
+                std::string err;
+                if (intrCopy.parseScript(arg, err))
+                  m_vectorContr[leftOpd].push_back(intrCopy.runScript());
+
+                cpos = cp + 1;
+              }
+              ++cp;
+            }
+          }
         }
-        else if (rightOpd == "Map") {
+        else if (startWith(rightOpd, "Map")) {
           m_mapContr[leftOpd] = std::map<std::string, std::string>();
+
+          auto entityRight = m_intr.allEntities()[m_intr.currentEntity().beginIndex + 1];
+
+          std::string& initBody = entityRight.value;
+
+          if (!initBody.empty()) {
+
+            size_t ssz = initBody.size(),
+              cpos = 0,
+              cp = 0;
+            int bordCnt = 0;
+
+            Interpreter intrCopy = m_intr;
+
+            while (cp < ssz) {
+              if (initBody[cp] == '(') ++bordCnt;
+              if (initBody[cp] == ')') --bordCnt;
+              if (((initBody[cp] == ',') || (cp == ssz - 1)) && (bordCnt == 0)) {
+
+                if (cp == ssz - 1) ++cp;
+
+                auto args = split(initBody.substr(cpos, cp - cpos), ':');
+                std::string err;
+                if ((args.size() > 1) && intrCopy.parseScript(args[1], err))
+                  m_mapContr[leftOpd][args[0]] = intrCopy.runScript();
+
+                cpos = cp + 1;
+              }
+              ++cp;
+            }
+          }
+         
         }
         else {
           leftOpd = rightOpd;
