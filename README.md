@@ -122,7 +122,8 @@ l_myLabel1: $a = 4;
 #include "../include/interpreter.h"
 #include "../include/base_library/arithmetic_operations.h"
 #include "../include/base_library/comparison_operations.h"
-#include "../include/base_library/base_container.h"
+#include "../include/base_library/containers.h"
+#include "../include/base_library/filesystem.h"
 #include <cctype>
 
 using namespace std;
@@ -142,7 +143,8 @@ int main(int argc, char* argv[])
 
   InterpreterBaseLib::ArithmeticOperations ao(ir);
   InterpreterBaseLib::ComparisonOperations co(ir);
-  InterpreterBaseLib::BaseContainer bc(ir);
+  InterpreterBaseLib::Container bc(ir);
+  InterpreterBaseLib::Filesystem fs(ir);
 
   ir.addFunction("summ", [](const vector<string>& args) ->string {
     int res = 0;
