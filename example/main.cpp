@@ -86,6 +86,9 @@ int main(int argc, char* argv[])
   scenar = "$b = 12; c = Map{ one : $b + 5, two : 2}; while($v : c) print($v);";
   res = ir.cmd(scenar); // one 17 two 2
 
+  scenar = "file1 = File{data.txt}; file2 = File{dataCopy.txt}; if (file1.exist()) { $data = file1.read(); file2.write($data); }";
+  res = ir.cmd(scenar);
+
   return 0;
 }
 
