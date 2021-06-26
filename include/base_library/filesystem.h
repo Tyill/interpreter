@@ -18,7 +18,10 @@ namespace InterpreterBaseLib {
       ir.addOperator("=", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
                         
         if (rightOpd == "File") {
-          m_fileHandler.insert(leftOpd);
+          
+          auto entityRight = m_intr.getEntityByIndex(m_intr.currentEntity().beginIndex + 1);
+
+          m_fileHandler[leftOpd] = entityRight.value; // fpath
         }
         else if (currOperator){
           return currOperator(leftOpd, rightOpd);
@@ -42,8 +45,8 @@ namespace InterpreterBaseLib {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
-        if (m_fileHandler.count(contrName) && !args.empty()) {          
-          std::ifstream fs(args[0]);
+        if (m_fileHandler.count(contrName)) {          
+          std::ifstream fs(m_fileHandler[contrName]);
           if (fs.good()) {
             std::stringstream strStream;
             strStream << fs.rdbuf();
@@ -64,12 +67,14 @@ namespace InterpreterBaseLib {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
-        if (m_fileHandler.count(contrName) && (args.size() > 1)) {
-          std::ofstream fs(args[0]);
-          if (fs.good())
-            fs << args[1];
+        if (m_fileHandler.count(contrName)) {
+          std::ofstream fs(m_fileHandler[contrName]);
+          if (fs.good() && !args.empty()) {
+            fs << args[0];
+            return "1";
+          }
           else
-            return "Error create file " + args[0];
+            return "0";
         }
         else if (currFunction) {
           return currFunction(args);
@@ -82,12 +87,14 @@ namespace InterpreterBaseLib {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
-        if (m_fileHandler.count(contrName) && (args.size() > 1)) {
-          std::ofstream fs(args[0], std::ios_base::app);
-          if (fs.good())
-            fs << args[1];
+        if (m_fileHandler.count(contrName)) {
+          std::ofstream fs(m_fileHandler[contrName], std::ios_base::app);
+          if (fs.good() && !args.empty()) {
+            fs << args[0];
+            return "1";
+          }
           else
-            return "Error create file " + args[0];
+            return "0";
         }
         else if (currFunction) {
           return currFunction(args);
@@ -100,8 +107,8 @@ namespace InterpreterBaseLib {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
-        if (m_fileHandler.count(contrName) && !args.empty()) {
-          std::ifstream fs(args[0]);
+        if (m_fileHandler.count(contrName)) {
+          std::ifstream fs(m_fileHandler[contrName]);
           return fs.good() ? "1" : "0";
         }
         else if (currFunction) {
@@ -123,6 +130,6 @@ namespace InterpreterBaseLib {
 
   protected:
     Interpreter& m_intr;
-    std::set<std::string> m_fileHandler;
+    std::map<std::string, std::string> m_fileHandler;
   };
 }
