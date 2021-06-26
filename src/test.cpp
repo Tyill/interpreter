@@ -26,7 +26,7 @@
 #include "../include/interpreter.h"
 #include "../include/base_library/arithmetic_operations.h"
 #include "../include/base_library/comparison_operations.h"
-#include "../include/base_library/base_container.h"
+#include "../include/base_library/containers.h"
 
 using namespace std;
 
@@ -84,7 +84,7 @@ public:
   Interpreter ir;
   InterpreterBaseLib::ArithmeticOperations ao_ir;
   InterpreterBaseLib::ComparisonOperations co_ir;
-  InterpreterBaseLib::BaseContainer bc_ir;
+  InterpreterBaseLib::Container bc_ir;
 };
 
 TEST_F(InprTest, operatorTest){   
