@@ -47,7 +47,10 @@ public:
   void exitFromScript();
   std::vector<Interpreter::Entity> allEntities();
   Interpreter::Entity currentEntity();
+  Interpreter::Entity getEntityByIndex(size_t beginIndex);
   bool gotoOnEntity(size_t iBegin);
+  Interpreter::UserFunction getUserFunction(const std::string& fname);
+  Interpreter::UserOperator getUserOperator(const std::string& oname);
 private:
   enum class Keyword {
     INSTRUCTION,
@@ -292,12 +295,26 @@ Interpreter::Entity InterpreterImpl::currentEntity() {
       m_currentIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
   };
 }
+Interpreter::Entity InterpreterImpl::getEntityByIndex(size_t beginIndex) {
+  if (beginIndex >= m_expr.size())
+    return Interpreter::Entity{ 0 };
+  const auto& exp = m_expr[beginIndex];
+  return Interpreter::Entity{
+      beginIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
+  };
+}
 bool InterpreterImpl::gotoOnEntity(size_t beginIndex) {
   if (beginIndex < m_expr.size()) {
     m_gotoIndex = beginIndex;
     return true;
   }
   return false;
+}
+Interpreter::UserFunction InterpreterImpl::getUserFunction(const std::string& fname) {
+  return m_ufunc.count(fname) ? m_ufunc[fname] : nullptr;
+}
+Interpreter::UserOperator InterpreterImpl::getUserOperator(const std::string& oname) {
+  return m_uoper.count(oname) ? m_uoper[oname].first : nullptr;
 }
 
 string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
@@ -1131,8 +1148,17 @@ std::vector<Interpreter::Entity> Interpreter::allEntities() {
   return m_d ? m_d->allEntities() : std::vector<Interpreter::Entity>();
 }
 Interpreter::Entity Interpreter::currentEntity() {
-  return m_d ? m_d->currentEntity() : Interpreter::Entity{0};
+  return m_d ? m_d->currentEntity() : Interpreter::Entity{ 0 };
+}
+Interpreter::Entity Interpreter::getEntityByIndex(size_t beginIndex) {
+  return m_d ? m_d->getEntityByIndex(beginIndex) : Interpreter::Entity{ 0 };
 }
 bool Interpreter::gotoOnEntity(size_t beginIndex) {
   return m_d ? m_d->gotoOnEntity(beginIndex) : false;
+}
+Interpreter::UserFunction Interpreter::getUserFunction(const std::string& fname) {
+  return m_d ? m_d->getUserFunction(fname) : nullptr;
+}
+Interpreter::UserOperator Interpreter::getUserOperator(const std::string& oname) {
+  return m_d ? m_d->getUserOperator(oname) : nullptr;
 }

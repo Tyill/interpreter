@@ -6,7 +6,7 @@
 
 namespace InterpreterBaseLib {
 
-  class BaseContainer {
+  class Container {
   public:
 
     bool isNumber(const std::string& s) const {
@@ -28,19 +28,17 @@ namespace InterpreterBaseLib {
       return res;
     }
 
-    BaseContainer(Interpreter& ir):
+    Container(Interpreter& ir):
       m_intr(ir)
     {      
-      ir.addOperator("=", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {        
-        
-        auto startWith = [](const std::string& str, const std::string& begin) -> bool {
-          return str.find(begin) == 0;
-        };
-        
-        if (startWith(rightOpd, "Vector")) {
+      auto currOperator = ir.getUserOperator("=");
+
+      ir.addOperator("=", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
+                        
+        if (rightOpd == "Vector") {
           m_vectorContr[leftOpd] = std::vector<std::string>();
 
-          auto entityRight = m_intr.allEntities()[m_intr.currentEntity().beginIndex + 1];
+          auto entityRight = m_intr.getEntityByIndex(m_intr.currentEntity().beginIndex + 1);
 
           std::string& initBody = entityRight.value;
 
@@ -71,10 +69,10 @@ namespace InterpreterBaseLib {
             }
           }
         }
-        else if (startWith(rightOpd, "Map")) {
+        else if (rightOpd == "Map") {
           m_mapContr[leftOpd] = std::map<std::string, std::string>();
 
-          auto entityRight = m_intr.allEntities()[m_intr.currentEntity().beginIndex + 1];
+          auto entityRight = m_intr.getEntityByIndex(m_intr.currentEntity().beginIndex + 1);
 
           std::string& initBody = entityRight.value;
 
@@ -103,28 +101,34 @@ namespace InterpreterBaseLib {
               }
               ++cp;
             }
-          }
-         
+          }         
         }
-        else {
-          leftOpd = rightOpd;
+        else if (currOperator){
+          return currOperator(leftOpd, rightOpd);
         }
         return leftOpd;
       }, 100);
 
-      ir.addOperator(".", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
+      currOperator = ir.getUserOperator(".");
+
+      ir.addOperator(".", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
         if (m_vectorContr.count(leftOpd) || m_mapContr.count(leftOpd)) {
           return rightOpd;
+        }
+        else if (currOperator) {
+          return currOperator(leftOpd, rightOpd);
         }
         return leftOpd;
       }, 0);
 
-      ir.addOperator(":", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
+      currOperator = ir.getUserOperator(".");
+
+      ir.addOperator(":", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
         if (m_vectorContr.count(rightOpd)) {
           
           int itPos = m_intr.currentEntity().value.empty() ? 0 : stoi(m_intr.currentEntity().value);
 
-          if (itPos < m_vectorContr[rightOpd].size()) {
+          if (itPos < (int)m_vectorContr[rightOpd].size()) {
             leftOpd = m_vectorContr[rightOpd][itPos];
             return std::to_string(++itPos);
           }
@@ -134,7 +138,7 @@ namespace InterpreterBaseLib {
 
           int itPos = m_intr.currentEntity().value.empty() ? 0 : stoi(m_intr.currentEntity().value);
 
-          if (itPos < m_mapContr[rightOpd].size()) {
+          if (itPos < (int)m_mapContr[rightOpd].size()) {
             int cpos = 0;
             for (auto& v : m_mapContr[rightOpd]) {
               leftOpd = v.first + '\t' + v.second;
@@ -144,6 +148,9 @@ namespace InterpreterBaseLib {
             return std::to_string(++itPos);
           }
           else return "0";
+        }
+        else if (currOperator) {
+          return currOperator(leftOpd, rightOpd);
         }
         return leftOpd;
         }, 0);
@@ -270,13 +277,11 @@ namespace InterpreterBaseLib {
     }
 
     std::string getContrNameByFunction(size_t funcBeginIndex){
-
-      auto entities = m_intr.allEntities();
-
+            
       std::string out;
-      if ((funcBeginIndex - 1 >= 0) && (entities[funcBeginIndex - 1].name == ".")){
+      if ((funcBeginIndex - 1 >= 0) && (m_intr.getEntityByIndex(funcBeginIndex - 1).name == ".")){
         if (funcBeginIndex - 2 >= 0)
-          out = entities[funcBeginIndex - 2].name;
+          out = m_intr.getEntityByIndex(funcBeginIndex - 2).name;
       }
       return out;
     }

@@ -29,10 +29,13 @@
     <ClInclude Include="..\include\base_library\arithmetic_operations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\base_library\base_container.h">
+    <ClInclude Include="..\include\base_library\comparison_operations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\base_library\comparison_operations.h">
+    <ClInclude Include="..\include\base_library\containers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\base_library\filesystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

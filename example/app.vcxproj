@@ -16,8 +16,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\base_library\arithmetic_operations.h" />
-    <ClInclude Include="..\include\base_library\base_container.h" />
+    <ClInclude Include="..\include\base_library\containers.h" />
     <ClInclude Include="..\include\base_library\comparison_operations.h" />
+    <ClInclude Include="..\include\base_library\filesystem.h" />
     <ClInclude Include="..\include\interpreter.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

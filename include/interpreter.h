@@ -144,9 +144,16 @@ public:
   /// Current entity
   Entity currentEntity();
 
+  /// Entity by index
+  Entity getEntityByIndex(size_t beginIndex);
+
   /// Go-to on entity
   /// @return true - ok
   bool gotoOnEntity(size_t beginIndex);
+
+  UserFunction getUserFunction(const std::string& fname);
+
+  UserOperator getUserOperator(const std::string& oname);
 
   //// Reflection part ////////////////////////////////////
 
