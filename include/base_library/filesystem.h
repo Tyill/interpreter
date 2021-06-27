@@ -88,15 +88,8 @@ namespace InterpreterBaseLib {
 
         if (m_fileHandler.count(contrName)) {
           std::ofstream fs(m_fileHandler[contrName]);
-          if (fs.good()) {
-            std::string value;
-            if (!args.empty()) {
-              Interpreter intrCopy = m_intr;
-              std::string err;
-              if (intrCopy.parseScript(args[0], err))
-                value = intrCopy.runScript();
-            }
-            fs << value;
+          if (fs.good() && !args.empty()) {
+            fs << args[0];
             return "1";
           }
           else
@@ -115,15 +108,8 @@ namespace InterpreterBaseLib {
 
         if (m_fileHandler.count(contrName)) {
           std::ofstream fs(m_fileHandler[contrName], std::ios_base::app);
-          if (fs.good()) {
-            std::string value;
-            if (!args.empty()) {
-              Interpreter intrCopy = m_intr;
-              std::string err;
-              if (intrCopy.parseScript(args[0], err))
-                value = intrCopy.runScript();
-            }
-            fs << value;
+          if (fs.good() && !args.empty()) {
+            fs << args[0];
             return "1";
           }
           else
