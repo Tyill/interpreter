@@ -132,8 +132,8 @@ l_myLabel1: $a = 4;
 
 | File                  | Dir                 |
 |-----------------------|---------------------|
-|`read`()               |`exist`(key, value)  |
-|`write`(data)          |`remove`(key, value) |
+|`read`()               |`exist`()            |
+|`write`(data)          |`remove`()           |
 |`exist`()              |                     |
 |`remove`()             |                     |
 
