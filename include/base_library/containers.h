@@ -32,7 +32,6 @@ namespace InterpreterBaseLib {
       m_intr(ir)
     {      
       auto currOperator = ir.getUserOperator("=");
-
       ir.addOperator("=", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
                         
         if (rightOpd == "Vector") {
@@ -110,7 +109,6 @@ namespace InterpreterBaseLib {
       }, 100);
 
       currOperator = ir.getUserOperator(".");
-
       ir.addOperator(".", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
         if (m_vectorContr.count(leftOpd) || m_mapContr.count(leftOpd)) {
           return rightOpd;
@@ -118,11 +116,10 @@ namespace InterpreterBaseLib {
         else if (currOperator) {
           return currOperator(leftOpd, rightOpd);
         }
-        return leftOpd;
+        return leftOpd + '.' + rightOpd;
       }, 0);
 
-      currOperator = ir.getUserOperator(".");
-
+      currOperator = ir.getUserOperator(":");
       ir.addOperator(":", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
         if (m_vectorContr.count(rightOpd)) {
           
@@ -152,73 +149,100 @@ namespace InterpreterBaseLib {
         else if (currOperator) {
           return currOperator(leftOpd, rightOpd);
         }
-        return leftOpd;
+        return leftOpd + ':' + rightOpd;
         }, 0);
 
-      ir.addFunction("push_back", [this](const std::vector<std::string>& args) ->std::string {
+      auto currFunction = ir.getUserFunction("push_back");
+      ir.addFunction("push_back", [this, currFunction](const std::vector<std::string>& args) ->std::string {
 
         std::string vecName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
         std::string ok = "0";
-        if (m_vectorContr.count(vecName) && !args.empty()) {
+        if (m_vectorContr.count(vecName)) {
           for (auto& a : args)
             m_vectorContr[vecName].push_back(a);
           ok = "1";
         }
+        else if (currFunction) {
+          return currFunction(args);
+        }
         return ok;
-        });
+      });
 
-      ir.addFunction("pop_back", [this](const std::vector<std::string>& args) ->std::string {
+      currFunction = ir.getUserFunction("pop_back");
+      ir.addFunction("pop_back", [this, currFunction](const std::vector<std::string>& args) ->std::string {
 
         std::string vecName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
         std::string ok = "0";
-        if (m_vectorContr.count(vecName) && !m_vectorContr[vecName].empty()) {
-          m_vectorContr[vecName].pop_back();
-          ok = "1";
+        if (m_vectorContr.count(vecName)) {
+          if (!m_vectorContr[vecName].empty()) {
+            m_vectorContr[vecName].pop_back();
+            ok = "1";
+          }
+        }
+        else if (currFunction) {
+          return currFunction(args);
         }
         return ok;
         });
 
-      ir.addFunction("insert", [this](const std::vector<std::string>& args) ->std::string {
+      currFunction = ir.getUserFunction("insert");
+      ir.addFunction("insert", [this, currFunction](const std::vector<std::string>& args) ->std::string {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
         std::string ok = "0";
-        if (m_vectorContr.count(contrName) && (args.size() > 1) && isNumber(args[0])) {
-          size_t inx = size_t(stoi(args[0]));
-          if (m_vectorContr[contrName].size() > inx) {
-            m_vectorContr[contrName].insert(m_vectorContr[contrName].begin() + inx, args[1]);
+        if (m_vectorContr.count(contrName)) {
+          if ((args.size() > 1) && isNumber(args[0])) {
+            size_t inx = size_t(stoi(args[0]));
+            if (m_vectorContr[contrName].size() > inx) {
+              m_vectorContr[contrName].insert(m_vectorContr[contrName].begin() + inx, args[1]);
+              ok = "1";
+            }
+          }
+        }
+        else if (m_mapContr.count(contrName)) {
+          if (args.size() > 1) {
+            m_mapContr[contrName][args[0]] = args[1];
             ok = "1";
           }
         }
-        else if (m_mapContr.count(contrName) && (args.size() > 1)) {
-          m_mapContr[contrName][args[0]] = args[1];
-          ok = "1";
+        else if (currFunction) {
+          return currFunction(args);
         }
         return ok;
         });
 
-      ir.addFunction("erase", [this](const std::vector<std::string>& args) ->std::string {
+      currFunction = ir.getUserFunction("erase");
+      ir.addFunction("erase", [this, currFunction](const std::vector<std::string>& args) ->std::string {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
         std::string ok = "0";
-        if (m_vectorContr.count(contrName) && !args.empty() && isNumber(args[0])) {
-          size_t inx = size_t(stoi(args[0]));
-          if (m_vectorContr[contrName].size() > inx) {
-            m_vectorContr[contrName].erase(m_vectorContr[contrName].begin() + inx);
+        if (m_vectorContr.count(contrName)) {
+          if (!args.empty() && isNumber(args[0])) {
+            size_t inx = size_t(stoi(args[0]));
+            if (m_vectorContr[contrName].size() > inx) {
+              m_vectorContr[contrName].erase(m_vectorContr[contrName].begin() + inx);
+              ok = "1";
+            }
+          }
+        }
+        else if (m_mapContr.count(contrName)) {
+          if (!args.empty() && m_mapContr[contrName].count(args[0])) {
+            m_mapContr[contrName].erase(args[0]);
             ok = "1";
           }
         }
-        else if (m_mapContr.count(contrName) && !args.empty() && m_mapContr[contrName].count(args[0])) {
-          m_mapContr[contrName].erase(args[0]);
-          ok = "1";
+        else if (currFunction) {
+          return currFunction(args);
         }
         return ok;
         });
 
-      ir.addFunction("size", [this](const std::vector<std::string>& args) ->std::string {
+      currFunction = ir.getUserFunction("size");
+      ir.addFunction("size", [this, currFunction](const std::vector<std::string>& args) ->std::string {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
@@ -226,11 +250,14 @@ namespace InterpreterBaseLib {
           return std::to_string(m_vectorContr[contrName].size());
         else if (m_mapContr.count(contrName))
           return std::to_string(m_mapContr[contrName].size());
-        else
-          return "";
+        else if (currFunction) {
+          return currFunction(args);
+        }
+        return "";
       });
 
-      ir.addFunction("empty", [this](const std::vector<std::string>& args) ->std::string {
+      currFunction = ir.getUserFunction("empty");
+      ir.addFunction("empty", [this, currFunction](const std::vector<std::string>& args) ->std::string {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
@@ -238,11 +265,14 @@ namespace InterpreterBaseLib {
           return m_vectorContr[contrName].empty() ? "1" : "0";
         else if (m_mapContr.count(contrName))
           return  m_mapContr[contrName].empty() ? "1" : "0";
-        else
-          return "";
+        else if (currFunction) {
+          return currFunction(args);
+        }
+        return "";
       });
 
-      ir.addFunction("clear", [this](const std::vector<std::string>& args) ->std::string {
+      currFunction = ir.getUserFunction("clear");
+      ir.addFunction("clear", [this, currFunction](const std::vector<std::string>& args) ->std::string {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
@@ -255,22 +285,31 @@ namespace InterpreterBaseLib {
           m_mapContr[contrName].clear();
           ok = "1";
         }
+        else if (currFunction) {
+          return currFunction(args);
+        }
         return ok;
         });
 
-      ir.addFunction("at", [this](const std::vector<std::string>& args) ->std::string {
+      currFunction = ir.getUserFunction("at");
+      ir.addFunction("at", [this, currFunction](const std::vector<std::string>& args) ->std::string {
 
         std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
 
         std::string out;
-        if (m_vectorContr.count(contrName) && !args.empty() && isNumber(args[0])) {
-          size_t inx = size_t(stoi(args[0]));
-          if (m_vectorContr[contrName].size() > inx)
-            out = m_vectorContr[contrName][inx];
+        if (m_vectorContr.count(contrName)) {
+          if (!args.empty() && isNumber(args[0])) {
+            size_t inx = size_t(stoi(args[0]));
+            if (m_vectorContr[contrName].size() > inx)
+              out = m_vectorContr[contrName][inx];
+          }
         }
-        else if (m_mapContr.count(contrName) && !args.empty()) {
-          if (m_mapContr[contrName].count(args[0]))
+        else if (m_mapContr.count(contrName)) {
+          if (!args.empty() && m_mapContr[contrName].count(args[0]))
             out = m_mapContr[contrName][args[0]];
+        }
+        else if (currFunction) {
+          return currFunction(args);
         }
         return out;
         });

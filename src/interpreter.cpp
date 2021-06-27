@@ -772,9 +772,13 @@ bool InterpreterImpl::parseExpressionScenar(string& scenar, size_t gpos) {
 
       if ((!oprName.empty() && (bodyBegin < cpos)) || (oprName.empty() && (bodyBegin != string::npos))) {
         const string vName = scenar.substr(posmem, bodyBegin - posmem);
-        const string value = getIntroScenar(scenar, bodyBegin, '{', '}');
-        if (m_var.find(vName) == m_var.end())
-          m_var.insert({ vName, "" });
+        string value = getIntroScenar(scenar, bodyBegin, '{', '}');
+        if (!value.empty()) {
+          if (value[0] == '"') 
+            value = value.substr(1);
+          if (!value.empty() && (value.back() == '"'))
+            value.pop_back();
+        }
 
         m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
         m_var[vName] = value;
