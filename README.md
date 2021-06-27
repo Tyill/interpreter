@@ -115,6 +115,28 @@ l_myLabel1: $a = 4;
 |`break;`                  | Aborts the execution of the loop                  |
 |`continue;`               | Continues the cycle                               |
 
+### Containers from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/containers.h) 
+
+| Vector                | Map                 |
+|-----------------------|---------------------|
+|`push_back`(value)     |`insert`(key, value) |
+|`pop_back`()           |`erase`(key)         |
+|`insert`(index, value) |`size`()             |
+|`erase`(index)         |`empty`()            |
+|`size`()               |`clear`()            |
+|`empty`()              |`at`(key)            |
+|`clear`()              |                     |
+|`at`(index)            |                     |
+
+### Filesystem from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/filesystem.h) 
+
+| File                  | Dir                 |
+|-----------------------|---------------------|
+|`read`()               |`exist`(key, value)  |
+|`write`(data)          |`remove`(key, value) |
+|`exist`()              |                     |
+|`remove`()             |                     |
+
 ### Example of use
 
 ```cpp
