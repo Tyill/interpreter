@@ -95,6 +95,8 @@ namespace InterpreterBaseLib {
                 std::string err;
                 if ((args.size() > 1) && intrCopy.parseScript(args[1], err))
                   m_mapContr[leftOpd][args[0]] = intrCopy.runScript();
+                else if (!args.empty())
+                  m_mapContr[leftOpd][args[0]] = "";
 
                 cpos = cp + 1;
               }
@@ -312,7 +314,34 @@ namespace InterpreterBaseLib {
           return currFunction(args);
         }
         return out;
-        });
+      });
+
+      currFunction = ir.getUserFunction("set");
+      ir.addFunction("set", [this, currFunction](const std::vector<std::string>& args) ->std::string {
+
+        std::string contrName = getContrNameByFunction(m_intr.currentEntity().beginIndex);
+
+        std::string ok = "0";
+        if (m_vectorContr.count(contrName)) {
+          if ((args.size() > 1) && isNumber(args[0])) {
+            size_t inx = size_t(stoi(args[0]));
+            if (m_vectorContr[contrName].size() > inx) {
+              m_vectorContr[contrName][inx] = args[1];
+              ok = "1";
+            }
+          }
+        }
+        else if (m_mapContr.count(contrName)) {
+          if ((args.size() > 1) && m_mapContr[contrName].count(args[0])) {
+            m_mapContr[contrName][args[0]] = args[1];
+            ok = "1";
+          }
+        }
+        else if (currFunction) {
+          return currFunction(args);
+        }
+        return ok;
+      });
     }
 
     std::string getContrNameByFunction(size_t funcBeginIndex){

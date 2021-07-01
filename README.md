@@ -125,8 +125,9 @@ l_myLabel1: $a = 4;
 |`erase`(index)         |`empty`()            |
 |`size`()               |`clear`()            |
 |`empty`()              |`at`(key)            |
-|`clear`()              |                     |
+|`clear`()              |`set`(key)           |
 |`at`(index)            |                     |
+|`set`(index)           |                     |
 
 ### Filesystem from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/filesystem.h) 
 
