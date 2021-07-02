@@ -176,6 +176,7 @@ int main(int argc, char* argv[])
   InterpreterBaseLib::ComparisonOperations co(ir);
   InterpreterBaseLib::Container bc(ir);
   InterpreterBaseLib::Filesystem fs(ir);
+  InterpreterBaseLib::Structure st(ir);
 
   ir.addFunction("summ", [](const vector<string>& args) ->string {
     int res = 0;
