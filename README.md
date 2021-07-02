@@ -154,6 +154,7 @@ e.one = summ(e.one, e.two);
 #include "../include/base_library/comparison_operations.h"
 #include "../include/base_library/containers.h"
 #include "../include/base_library/filesystem.h"
+#include "../include/base_library/structure.h"
 #include <cctype>
 
 using namespace std;
