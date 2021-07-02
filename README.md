@@ -138,6 +138,13 @@ l_myLabel1: $a = 4;
 |`exist`()              |                     |
 |`remove`()             |                     |
 
+### Structure from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/structure.h) 
+
+```
+e = Struct{ one : 5, two : 2}; 
+e.one = summ(e.one, e.two);
+```
+
 ### Example of use
 
 ```cpp
@@ -204,6 +211,12 @@ int main(int argc, char* argv[])
 
   scenar = "$b = 12; c = Map{ one : $b + 5, two : 2}; while($v : c) print($v);";
   res = ir.cmd(scenar); // one 17 two 2
+
+  scenar = "e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one";
+  res = ir.cmd(scenar); // 7
+
+  scenar = "$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three";
+  res = ir.cmd(scenar); // 22
 
   scenar = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"}; if (file1.exist()) { $data = file1.read(); file2.write($data); }";
   res = ir.cmd(scenar);

@@ -27,6 +27,7 @@
 #include "../include/base_library/arithmetic_operations.h"
 #include "../include/base_library/comparison_operations.h"
 #include "../include/base_library/containers.h"
+#include "../include/base_library/structure.h"
 
 using namespace std;
 
@@ -44,7 +45,8 @@ public:
   InprTest(): 
   ao_ir(ir),
   co_ir(ir),
-  bc_ir(ir){
+  bc_ir(ir),
+  st_ir(ir){
     
   ir.addOperator("->", [](string& leftOpd, string& rightOpd) ->string {
     rightOpd = leftOpd;
@@ -85,6 +87,7 @@ public:
   InterpreterBaseLib::ArithmeticOperations ao_ir;
   InterpreterBaseLib::ComparisonOperations co_ir;
   InterpreterBaseLib::Container bc_ir;
+  InterpreterBaseLib::Structure st_ir;
 };
 
 TEST_F(InprTest, operatorTest){   
@@ -141,6 +144,11 @@ TEST_F(InprTest, reflectionTest){
 TEST_F(InprTest, containerTest){ 
   EXPECT_TRUE(ir.cmd("a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a.size()") == "3");
   EXPECT_TRUE(ir.cmd("b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)") == "myValueTwo");
+}
+TEST_F(InprTest, structureTest){ 
+  EXPECT_TRUE(ir.cmd("e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one") == "7");
+  EXPECT_TRUE(ir.cmd("$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = $b; e.three") == "12");
+  EXPECT_TRUE(ir.cmd("$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three") == "22");
 }
 
 int main(int argc, char* argv[]){
