@@ -115,7 +115,25 @@ l_myLabel1: $a = 4;
 |`break;`                  | Aborts the execution of the loop                  |
 |`continue;`               | Continues the cycle                               |
 
+### Structure from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/structure.h) 
+
+```
+scenar = "e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one";
+res = ir.cmd(scenar); // 7
+
+scenar = "$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three";
+res = ir.cmd(scenar); // 22
+```
+
 ### Containers from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/containers.h) 
+
+```
+scenar = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
+res = ir.cmd(scenar); // 1 2 3
+
+scenar = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
+res = ir.cmd(scenar); // myValueTwo
+```
 
 | Vector                | Map                 |
 |-----------------------|---------------------|
@@ -131,19 +149,18 @@ l_myLabel1: $a = 4;
 
 ### Filesystem from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/filesystem.h) 
 
+```
+scenar = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"};  \
+          if (file1.exist()) { $data = file1.read(); file2.write($data); }";
+res = ir.cmd(scenar);
+```
+
 | File                  | Dir                 |
 |-----------------------|---------------------|
 |`read`()               |`exist`()            |
 |`write`(data)          |`remove`()           |
 |`exist`()              |                     |
 |`remove`()             |                     |
-
-### Structure from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/structure.h) 
-
-```
-e = Struct{ one : 5, two : 2}; 
-e.one = summ(e.one, e.two);
-```
 
 ### Example of use
 
