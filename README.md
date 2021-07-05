@@ -115,7 +115,25 @@ l_myLabel1: $a = 4;
 |`break;`                  | Aborts the execution of the loop                  |
 |`continue;`               | Continues the cycle                               |
 
+### Structure from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/structure.h) 
+
+```
+scenar = "e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one";
+res = ir.cmd(scenar); // 7
+
+scenar = "$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three";
+res = ir.cmd(scenar); // 22
+```
+
 ### Containers from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/containers.h) 
+
+```
+scenar = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
+res = ir.cmd(scenar); // 1 2 3
+
+scenar = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
+res = ir.cmd(scenar); // myValueTwo
+```
 
 | Vector                | Map                 |
 |-----------------------|---------------------|
@@ -130,6 +148,12 @@ l_myLabel1: $a = 4;
 |`set`(index)           |                     |
 
 ### Filesystem from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/filesystem.h) 
+
+```
+scenar = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"};  \
+          if (file1.exist()) { $data = file1.read(); file2.write($data); }";
+res = ir.cmd(scenar);
+```
 
 | File                  | Dir                 |
 |-----------------------|---------------------|
@@ -147,6 +171,7 @@ l_myLabel1: $a = 4;
 #include "../include/base_library/comparison_operations.h"
 #include "../include/base_library/containers.h"
 #include "../include/base_library/filesystem.h"
+#include "../include/base_library/structure.h"
 #include <cctype>
 
 using namespace std;
@@ -168,6 +193,7 @@ int main(int argc, char* argv[])
   InterpreterBaseLib::ComparisonOperations co(ir);
   InterpreterBaseLib::Container bc(ir);
   InterpreterBaseLib::Filesystem fs(ir);
+  InterpreterBaseLib::Structure st(ir);
 
   ir.addFunction("summ", [](const vector<string>& args) ->string {
     int res = 0;
@@ -204,6 +230,12 @@ int main(int argc, char* argv[])
 
   scenar = "$b = 12; c = Map{ one : $b + 5, two : 2}; while($v : c) print($v);";
   res = ir.cmd(scenar); // one 17 two 2
+
+  scenar = "e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one";
+  res = ir.cmd(scenar); // 7
+
+  scenar = "$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three";
+  res = ir.cmd(scenar); // 22
 
   scenar = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"}; if (file1.exist()) { $data = file1.read(); file2.write($data); }";
   res = ir.cmd(scenar);
