@@ -32,6 +32,7 @@
 #include <cstdint>
 
 class InterpreterImpl;
+
 class Interpreter {
 
 public:
@@ -59,6 +60,11 @@ public:
   /// @param priority
   /// return true - ok
   bool addOperator(const std::string& name, UserOperator uopr, uint32_t priority);
+
+  /// Add attribute
+  /// @param name
+  /// return true - ok
+  bool addAttribute(const std::string& name);
    
   /// Execute script (== parseScript + runScript)
   /// @param script
@@ -146,6 +152,9 @@ public:
 
   /// Entity by index
   Entity getEntityByIndex(size_t beginIndex);
+
+  /// Attribute by index
+  std::string getAttributeByIndex(size_t beginIndex);
 
   /// Go-to on entity
   /// @return true - ok

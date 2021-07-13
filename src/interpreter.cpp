@@ -27,6 +27,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <set>
 
 using namespace std;
 
@@ -35,6 +36,7 @@ public:
   InterpreterImpl() = default;
   bool addFunction(const string& name, Interpreter::UserFunction ufunc);
   bool addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority);
+  bool addAttribute(const string& name);
   string cmd(string scenar);
   bool parseScript(string script, string& outErr);
   string runScript();
@@ -48,6 +50,7 @@ public:
   std::vector<Interpreter::Entity> allEntities();
   Interpreter::Entity currentEntity();
   Interpreter::Entity getEntityByIndex(size_t beginIndex);
+  string getAttributeByIndex(size_t beginIndex);
   bool gotoOnEntity(size_t iBegin);
   Interpreter::UserFunction getUserFunction(const std::string& fname);
   Interpreter::UserOperator getUserOperator(const std::string& oname);
@@ -85,6 +88,8 @@ private:
   map<string, string> m_var;
   map<string, string> m_macro;
   map<string, size_t> m_label;
+  set<string> m_attribute;
+  map<size_t, string> m_exprAttribute;
   map<size_t, vector<Operatr>> m_soper;
   vector<Expression> m_expr;
   string m_err, m_prevScenar;
@@ -114,6 +119,7 @@ private:
   string getOperatorAtFirst(const string& scenar, size_t& cpos) const;
   string getFunctionAtFirst(const string& scenar, size_t& cpos) const;
   string getMacroAtFirst(const string& scenar, size_t& cpos) const;
+  string getAttributeAtFirst(const string& scenar, size_t& cpos) const;
   string getNextOperator(const string& scenar, size_t& cpos) const;
   string getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd) const;
 };
@@ -250,6 +256,10 @@ bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator 
   m_uoper[name] = {move(uopr), priority};
   return true;
 }
+bool InterpreterImpl::addAttribute(const string& name) {
+  m_attribute.insert(name);
+  return true;
+}
 
 std::map<std::string, std::string> InterpreterImpl::allVariables() const {
   return m_var;
@@ -302,6 +312,9 @@ Interpreter::Entity InterpreterImpl::getEntityByIndex(size_t beginIndex) {
   return Interpreter::Entity{
       beginIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
   };
+}
+string InterpreterImpl::getAttributeByIndex(size_t index) {
+  return m_exprAttribute.count(index) ? m_exprAttribute[index] : "";
 }
 bool InterpreterImpl::gotoOnEntity(size_t beginIndex) {
   if (beginIndex < m_expr.size()) {
@@ -628,8 +641,7 @@ bool InterpreterImpl::parseInstructionScenar(string& scenar, size_t gpos) {
     if (scenar[cpos] == ';') {
       ++cpos;
       continue;
-    }
-
+    }    
     size_t cposFunc = cpos,
            cposOpr = cpos;
     if (!getFunctionAtFirst(scenar, cposFunc).empty() || !getOperatorAtFirst(scenar, cposOpr).empty()) {
@@ -764,6 +776,11 @@ bool InterpreterImpl::parseExpressionScenar(string& scenar, size_t gpos) {
 
   string oprName, fName;
   while (cpos < scenar.size()) {
+
+    string attr = getAttributeAtFirst(scenar, cpos);
+    if (!attr.empty()) {
+      m_exprAttribute[iExpr] = attr;
+    }
     if (scenar[cpos] == '$') {
       size_t posmem = cpos;
       oprName = getNextOperator(scenar, cpos);
@@ -956,7 +973,7 @@ bool InterpreterImpl::parseMacroArgs(const string& args, string& macro) {
 
 string InterpreterImpl::getNextParam(const string& scenar, size_t& cpos, char symb) const {
   size_t pos = scenar.find(symb, cpos);
-  string res = "";
+  string res;
   if (pos != string::npos) {
     res = scenar.substr(cpos, pos - cpos);
     cpos = pos + 1;
@@ -965,7 +982,7 @@ string InterpreterImpl::getNextParam(const string& scenar, size_t& cpos, char sy
 }
 string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) const {
   size_t minp = string::npos;
-  string opr = "";
+  string opr;
   for (const auto& op : m_uoper) {
     size_t pos = scenar.find(op.first, cpos);
     if ((pos != string::npos) && ((pos <= minp) || (minp == string::npos))) {
@@ -980,7 +997,7 @@ string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) cons
   return opr;
 }
 string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) const {
-  string opr = "";
+  string opr;
   for (const auto& op : m_uoper) {
     if (startWith(scenar, cpos, op.first)) {
       if (opr.empty() || (opr.size() < op.first.size()))
@@ -991,7 +1008,7 @@ string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) c
   return opr;
 }
 string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) const {
-  string fName = "";
+  string fName;
   for (const auto& f : m_ufunc) {
     if (startWith(scenar, cpos, f.first)) {
       if (fName.empty() || (fName.size() < f.first.size()))
@@ -1002,11 +1019,22 @@ string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) c
   return fName;
 }
 string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) const {
-  string mName = "";
+  string mName;
   for (const auto& m : m_macro) {
     if (startWith(scenar, cpos, m.first)) {
       if (mName.empty() || (mName.size() < m.first.size()))
         mName = m.first;
+    }
+  }
+  cpos += mName.size();
+  return mName;
+}
+string InterpreterImpl::getAttributeAtFirst(const string& scenar, size_t& cpos) const {
+  string mName;
+  for (const auto& m : m_attribute) {
+    if (startWith(scenar, cpos, m)) {
+      if (mName.empty() || (mName.size() < m.size()))
+        mName = m;
     }
   }
   cpos += mName.size();
@@ -1022,7 +1050,7 @@ string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char 
     if (bordCnt == 0) break;
     ++cp;
   }
-  string res = "";
+  string res;
   if ((bordCnt == 0) && (cp > cpos)) {
     res = scenar.substr(cpos + 1, cp - cpos - 1);
     cpos = cp + 1;
@@ -1127,6 +1155,9 @@ bool Interpreter::addFunction(const string& name, UserFunction ufunc) {
 bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t priority) {
   return m_d ? m_d->addOperator(name, uoper, priority) : false;
 }
+bool Interpreter::addAttribute(const std::string& name) {
+  return m_d ? m_d->addAttribute(name) : false;
+}
 std::map<std::string, std::string> Interpreter::allVariables() const {
   return m_d ? m_d->allVariables() : std::map<std::string, std::string>();
 }
@@ -1156,6 +1187,9 @@ Interpreter::Entity Interpreter::currentEntity() {
 }
 Interpreter::Entity Interpreter::getEntityByIndex(size_t beginIndex) {
   return m_d ? m_d->getEntityByIndex(beginIndex) : Interpreter::Entity{ 0 };
+}
+std::string Interpreter::getAttributeByIndex(size_t beginIndex) {
+  return m_d ? m_d->getAttributeByIndex(beginIndex) : "";
 }
 bool Interpreter::gotoOnEntity(size_t beginIndex) {
   return m_d ? m_d->gotoOnEntity(beginIndex) : false;
