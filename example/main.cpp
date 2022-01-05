@@ -96,6 +96,12 @@ int main(int argc, char* argv[])
 
   scenar = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"}; if (file1.exist()) { $data = file1.read(); file2.write($data); }";
   res = ir.cmd(scenar);
+
+  scenar = "$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()";
+  res = ir.cmd(scenar); // 3
+
+  scenar = "function myFunc{ $arg0 += $arg1; }; myFunc(2, 3)";
+  res = ir.cmd(scenar); // 5
   
   return 0;
 }

@@ -150,6 +150,10 @@ TEST_F(InprTest, structureTest){
   EXPECT_TRUE(ir.cmd("$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = $b; e.three") == "12");
   EXPECT_TRUE(ir.cmd("$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three") == "22");
 }
+TEST_F(InprTest, internFuncTest){ 
+  EXPECT_TRUE(ir.cmd("$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()") == "3");
+  EXPECT_TRUE(ir.cmd("function myFunc{ $arg0 += $arg1; }; myFunc(2, 3)") == "5");
+}
 
 int main(int argc, char* argv[]){
  

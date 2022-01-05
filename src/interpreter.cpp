@@ -91,6 +91,7 @@ private:
   set<string> m_attribute;
   map<size_t, string> m_exprAttribute;
   map<size_t, vector<Operatr>> m_soper;
+  map<string, InterpreterImpl> m_internFunc;
   vector<Expression> m_expr;
   string m_err, m_prevScenar;
   size_t m_gotoIndex = size_t(-1);
@@ -361,7 +362,22 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
       i = m_expr[i].iBodyEnd;
     }
     m_currentIndex = iExpr;
-    g_result = m_expr[iExpr].result = m_ufunc[m_expr[iExpr].params](args);
+    const string& fname = m_expr[iExpr].params;
+    if (m_internFunc.count(fname)) {
+      auto& impl = m_internFunc[fname];
+      impl.m_ufunc = m_ufunc;
+      impl.m_uoper = m_uoper;
+      impl.m_var = m_var;
+      impl.m_macro = m_macro;
+      impl.m_label = m_label;
+      impl.m_attribute = m_attribute;
+      for (size_t i = 0; i < args.size(); ++i) {
+        impl.m_var["$arg" + to_string(i)] = args[i];
+      }
+      g_result = m_expr[iExpr].result = m_internFunc[fname].runScript();
+    } else {
+      g_result = m_expr[iExpr].result = m_ufunc[fname](args);
+    }
   }
     break;
   case Keyword::WHILE:
@@ -757,6 +773,21 @@ bool InterpreterImpl::parseInstructionScenar(string& scenar, size_t gpos) {
       CHECK_PARSE_RETURN(lname.empty());
 
       m_label[lname] = iExpr;
+    }
+    else if (startWith(scenar, cpos, "function")) {
+      cpos += 8;
+      const string fname = getNextParam(scenar, cpos, '{');
+      CHECK_PARSE_RETURN(fname.empty());
+
+      cpos -= 1;
+      const string fbody = getIntroScenar(scenar, cpos, '{', '}');
+      CHECK_PARSE_RETURN(fbody.empty());
+
+      InterpreterImpl fImpl = *this;
+      CHECK_PARSE_RETURN(!fImpl.parseScript(fbody, m_err));
+
+      m_internFunc[fname] = fImpl;
+      m_ufunc[fname] = nullptr;     
     }
     else {
       m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });

@@ -18,7 +18,7 @@ ss << "$a = 5;"
 string res = ir.cmd(ss.str()); // 9
 ```
 
-### User functions
+### User functions outside the script
 You can define any functions. Can be passed as parameters to other functions.  
 Simple addition
 ```cpp
@@ -33,6 +33,19 @@ Simple addition
 Use in script
 ```
 $c = 5; $d = $c + 5; summ($c, $d,  summ(6 + 5, 3));
+```
+
+### User functions inside the script
+You can define any functions in script
+```
+$a = 1; $b = 2; 
+function myFunc{ $a += $b; };  // define
+myFunc();                      // call                         
+```
+With params
+```
+function myFunc{ $arg0 += $arg1; };  // define
+myFunc(2, 3);                        // call       
 ```
 
 ### User operators
@@ -239,6 +252,12 @@ int main(int argc, char* argv[])
 
   scenar = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"}; if (file1.exist()) { $data = file1.read(); file2.write($data); }";
   res = ir.cmd(scenar);
+  
+  scenar = "$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()";
+  res = ir.cmd(scenar); // 3
+
+  scenar = "function myFunc{ $arg0 += $arg1; }; myFunc(2, 3)";
+  res = ir.cmd(scenar); // 5
   
   return 0;
 }
