@@ -365,16 +365,27 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
     const string& fname = m_expr[iExpr].params;
     if (m_internFunc.count(fname)) {
       auto& impl = m_internFunc[fname];
-      impl.m_ufunc = m_ufunc;
-      impl.m_uoper = m_uoper;
-      impl.m_var = m_var;
-      impl.m_macro = m_macro;
-      impl.m_label = m_label;
-      impl.m_attribute = m_attribute;
+      if (impl.m_internFunc.count(fname) == 0) {
+        impl.m_internFunc = m_internFunc;
+        impl.m_ufunc = m_ufunc;
+        impl.m_uoper = m_uoper;
+        impl.m_attribute = m_attribute;
+        for (auto& macro : m_macro) {
+          impl.m_macro[macro.first] = macro.second;
+        }
+      }
+      for (auto& var : m_var) {
+        impl.m_var[var.first] = var.second;
+      }
       for (size_t i = 0; i < args.size(); ++i) {
         impl.m_var["$arg" + to_string(i)] = args[i];
       }
+      
       g_result = m_expr[iExpr].result = m_internFunc[fname].runScript();
+     
+      for (auto& var : m_var) {
+        var.second = impl.m_var[var.first];
+      }
     } else {
       g_result = m_expr[iExpr].result = m_ufunc[fname](args);
     }
