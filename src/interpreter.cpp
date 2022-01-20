@@ -388,7 +388,9 @@ string InterpreterImpl::calcFunction(size_t iExpr) {
     if (m_internFunc.count(fname)) {
         auto& impl = m_internFunc[fname];
         if (impl.m_internFunc.count(fname) == 0) {
-            impl.m_internFunc[fname] = impl;
+            for (auto& f : m_internFunc) {
+                impl.m_internFunc[f.first] = f.second;
+            }            
             impl.m_ufunc = m_ufunc;
             impl.m_uoper = m_uoper;
             impl.m_attribute = m_attribute;
