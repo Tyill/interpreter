@@ -99,6 +99,7 @@ private:
   bool m_exit = false;
 
   string calcOperation(Keyword mainKeyword, size_t iExpr);
+  string calcFunction(size_t iExpr);
   string calcCondition(size_t iExpr);
   string calcExpression(size_t iBegin, size_t iEnd);
   void calcOperatorPriority(size_t iBegin, size_t iEnd, vector<Operatr>& oprs);
@@ -344,52 +345,8 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
   case Keyword::EXPRESSION:
     g_result = m_expr[iExpr].result = calcExpression(iExpr + 1, m_expr[iExpr].iBodyEnd);
     break;
-  case Keyword::FUNCTION: {
-    size_t iBegin = iExpr + 1;
-    size_t iEnd = m_expr[iExpr].iConditionEnd;
-    vector<string> args;
-    for (size_t i = iBegin; i < iEnd;) {
-      if ((i + 1 == m_expr[i].iBodyEnd - 1) && ((m_expr[i + 1].keyw == Keyword::VARIABLE) || (m_expr[i + 1].keyw == Keyword::VALUE))) {
-        if (m_expr[i + 1].keyw == Keyword::VARIABLE)
-          m_expr[i].result = m_var[m_expr[i + 1].params];
-        else
-          m_expr[i].result = m_expr[i + 1].params;
-      }
-      else{
-        m_expr[i].result = calcExpression(i + 1, m_expr[i].iBodyEnd); 
-      }
-      args.emplace_back(m_expr[i].result);
-      i = m_expr[i].iBodyEnd;
-    }
-    m_currentIndex = iExpr;
-    const string& fname = m_expr[iExpr].params;
-    if (m_internFunc.count(fname)) {
-      auto& impl = m_internFunc[fname];
-      if (impl.m_internFunc.count(fname) == 0) {
-        impl.m_internFunc = m_internFunc;
-        impl.m_ufunc = m_ufunc;
-        impl.m_uoper = m_uoper;
-        impl.m_attribute = m_attribute;
-        for (auto& macro : m_macro) {
-          impl.m_macro[macro.first] = macro.second;
-        }
-      }
-      for (auto& var : m_var) {
-        impl.m_var[var.first] = var.second;
-      }
-      for (size_t i = 0; i < args.size(); ++i) {
-        impl.m_var["$arg" + to_string(i)] = args[i];
-      }
-      
-      g_result = m_expr[iExpr].result = m_internFunc[fname].runScript();
-     
-      for (auto& var : m_var) {
-        var.second = impl.m_var[var.first];
-      }
-    } else {
-      g_result = m_expr[iExpr].result = m_ufunc[fname](args);
-    }
-  }
+  case Keyword::FUNCTION:
+    g_result = m_expr[iExpr].result = calcFunction(iExpr);
     break;
   case Keyword::WHILE:
   case Keyword::IF:
@@ -406,6 +363,56 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
     break;
   }
   return g_result;
+}
+string InterpreterImpl::calcFunction(size_t iExpr) {
+
+    string g_result;
+    size_t iBegin = iExpr + 1;
+    size_t iEnd = m_expr[iExpr].iConditionEnd;
+    vector<string> args;
+    for (size_t i = iBegin; i < iEnd;) {
+        if ((i + 1 == m_expr[i].iBodyEnd - 1) && ((m_expr[i + 1].keyw == Keyword::VARIABLE) || (m_expr[i + 1].keyw == Keyword::VALUE))) {
+            if (m_expr[i + 1].keyw == Keyword::VARIABLE)
+                m_expr[i].result = m_var[m_expr[i + 1].params];
+            else
+                m_expr[i].result = m_expr[i + 1].params;
+        }
+        else {
+            m_expr[i].result = calcExpression(i + 1, m_expr[i].iBodyEnd);
+        }
+        args.emplace_back(m_expr[i].result);
+        i = m_expr[i].iBodyEnd;
+    }
+    m_currentIndex = iExpr;
+    const string& fname = m_expr[iExpr].params;
+    if (m_internFunc.count(fname)) {
+        auto& impl = m_internFunc[fname];
+        if (impl.m_internFunc.count(fname) == 0) {
+            impl.m_internFunc[fname] = impl;
+            impl.m_ufunc = m_ufunc;
+            impl.m_uoper = m_uoper;
+            impl.m_attribute = m_attribute;
+            for (auto& macro : m_macro) {
+                impl.m_macro[macro.first] = macro.second;
+            }
+        }
+        for (auto& var : m_var) {
+            impl.m_var[var.first] = var.second;
+        }
+        for (size_t i = 0; i < args.size(); ++i) {
+            impl.m_var["$arg" + to_string(i)] = args[i];
+        }
+
+        g_result = m_internFunc[fname].runScript();
+
+        for (auto& var : m_var) {
+            var.second = impl.m_var[var.first];
+        }
+    }
+    else {
+        g_result = m_ufunc[fname](args);
+    }
+    return g_result;
 }
 string InterpreterImpl::calcCondition(size_t iExpr) {
 

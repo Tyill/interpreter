@@ -100,6 +100,9 @@ int main(int argc, char* argv[])
   scenar = "$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()";
   res = ir.cmd(scenar); // 3
 
+  scenar = "$a = 1; $b = 2; function myFunc{ $a += $b; function myFunc2{ $a += $b; }; myFunc2(); }; myFunc()";
+  res = ir.cmd(scenar); // 5
+  
   scenar = "function myFunc{ $arg0 += $arg1; }; myFunc(2, 3)";
   res = ir.cmd(scenar); // 5
   
