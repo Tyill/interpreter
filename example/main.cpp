@@ -72,36 +72,39 @@ int main(int argc, char* argv[])
   
   scenar = "$a{5}; $b{2}; $c = summ($a, ($a + ($a * ($b + $a))), summ(5)); $c;";
   res = ir.cmd(scenar); // 50
-
+  
   scenar = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a.size()";
   res = ir.cmd(scenar); // 3
-
+  
   scenar = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
   res = ir.cmd(scenar); // myValueTwo
-
+  
   scenar = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
   res = ir.cmd(scenar); // 1 2 3
-
+  
   scenar = "a = Vector{1 + 2, 2 + 3, 3 + 4}; while($v : a) print($v);";
   res = ir.cmd(scenar); // 3 5 7
-
+  
   scenar = "$b = 12; c = Map{ one : $b + 5, two : 2}; while($v : c) print($v);";
   res = ir.cmd(scenar); // one 17 two 2
-
+  
   scenar = "e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one";
   res = ir.cmd(scenar); // 7
-
+  
   scenar = "$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three";
   res = ir.cmd(scenar); // 22
-
+  
   scenar = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"}; if (file1.exist()) { $data = file1.read(); file2.write($data); }";
   res = ir.cmd(scenar);
-
+  
   scenar = "$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()";
   res = ir.cmd(scenar); // 3
-
+  
   scenar = "$a = 1; $b = 2; function myFunc{ $a += $b; function myFunc2{ $a += $b; }; myFunc2(); }; myFunc()";
   res = ir.cmd(scenar); // 5
+
+  scenar = "$a = 0; function myFunc{ if ($arg0 > 1) $a = $arg0 * myFunc($arg0 - 1); else $a = 1; $a }; myFunc(5)";
+  res = ir.cmd(scenar); // 120
   
   scenar = "function myFunc{ $arg0 += $arg1; }; myFunc(2, 3)";
   res = ir.cmd(scenar); // 5

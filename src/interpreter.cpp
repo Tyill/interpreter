@@ -365,7 +365,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
   return g_result;
 }
 string InterpreterImpl::calcFunction(size_t iExpr) {
-
+    
     string g_result;
     size_t iBegin = iExpr + 1;
     size_t iEnd = m_expr[iExpr].iConditionEnd;
@@ -386,17 +386,9 @@ string InterpreterImpl::calcFunction(size_t iExpr) {
     m_currentIndex = iExpr;
     const string& fname = m_expr[iExpr].params;
     if (m_internFunc.count(fname)) {
-        auto& impl = m_internFunc[fname];
-        if (impl.m_internFunc.count(fname) == 0) {
-            for (auto& f : m_internFunc) {
-                impl.m_internFunc[f.first] = f.second;
-            }            
-            impl.m_ufunc = m_ufunc;
-            impl.m_uoper = m_uoper;
-            impl.m_attribute = m_attribute;
-            for (auto& macro : m_macro) {
-                impl.m_macro[macro.first] = macro.second;
-            }
+        auto& impl = m_internFunc[fname];    
+        for (auto& f : m_internFunc) {
+            impl.m_internFunc[f.first] = f.second;
         }
         for (auto& var : m_var) {
             impl.m_var[var.first] = var.second;
@@ -404,9 +396,9 @@ string InterpreterImpl::calcFunction(size_t iExpr) {
         for (size_t i = 0; i < args.size(); ++i) {
             impl.m_var["$arg" + to_string(i)] = args[i];
         }
-
-        g_result = m_internFunc[fname].runScript();
-
+        
+        g_result = impl.runScript();
+        
         for (auto& var : m_var) {
             var.second = impl.m_var[var.first];
         }
@@ -804,10 +796,12 @@ bool InterpreterImpl::parseInstructionScenar(string& scenar, size_t gpos) {
       CHECK_PARSE_RETURN(fbody.empty());
 
       InterpreterImpl fImpl = *this;
+      fImpl.m_ufunc[fname] = nullptr;
+
       CHECK_PARSE_RETURN(!fImpl.parseScript(fbody, m_err));
 
-      m_internFunc[fname] = fImpl;
-      m_ufunc[fname] = nullptr;     
+      m_internFunc[fname] = fImpl;      
+      m_ufunc[fname] = nullptr;   
     }
     else {
       m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
