@@ -31,9 +31,9 @@
 
 using namespace std;
 
-class InterpreterImpl {
+class Interpreter::Impl {
 public:
-  InterpreterImpl() = default;
+  Impl() = default;
   bool addFunction(const string& name, Interpreter::UserFunction ufunc);
   bool addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority);
   bool addAttribute(const string& name);
@@ -91,7 +91,7 @@ private:
   set<string> m_attribute;
   map<size_t, string> m_exprAttribute;
   map<size_t, vector<Operatr>> m_soper;
-  map<string, InterpreterImpl> m_internFunc;
+  map<string, Impl> m_internFunc;
   vector<Expression> m_expr;
   string m_err, m_prevScenar;
   size_t m_gotoIndex = size_t(-1);
@@ -126,7 +126,7 @@ private:
   string getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd) const;
 };
 
-string InterpreterImpl::cmd(string scenar) {
+string Interpreter::Impl::cmd(string scenar) {
     
   string err;
   if (!parseScript(move(scenar), err))
@@ -135,7 +135,7 @@ string InterpreterImpl::cmd(string scenar) {
   return runScript();
 }
 
-bool InterpreterImpl::parseScript(string scenar, string& err) {
+bool Interpreter::Impl::parseScript(string scenar, string& err) {
 
   cleaningScenar(scenar);
 
@@ -161,7 +161,7 @@ bool InterpreterImpl::parseScript(string scenar, string& err) {
   return true;
 }
 
-string InterpreterImpl::runScript() {
+string Interpreter::Impl::runScript() {
 
   for (auto& ex : m_expr)
     ex.iOperator = size_t(-1);
@@ -184,7 +184,7 @@ string InterpreterImpl::runScript() {
   return result;
 }
 
-void InterpreterImpl::cleaningScenar(string& scenar) const {
+void Interpreter::Impl::cleaningScenar(string& scenar) const {
 
   // del comments
   size_t commp = scenar.find("//");
@@ -231,7 +231,7 @@ void InterpreterImpl::cleaningScenar(string& scenar) const {
   }
 }
 
-bool InterpreterImpl::checkScenar(const string& scenar, string& err) const {
+bool Interpreter::Impl::checkScenar(const string& scenar, string& err) const {
 
 #define CHECK_SCENAR_RETURN(condition)                                                \
   if (condition){                                                       \
@@ -248,48 +248,48 @@ bool InterpreterImpl::checkScenar(const string& scenar, string& err) const {
   return true;
 }
 
-bool InterpreterImpl::addFunction(const string& name, Interpreter::UserFunction ufunc) {
+bool Interpreter::Impl::addFunction(const string& name, Interpreter::UserFunction ufunc) {
   if (name.empty() || (keywordByName(name) != Keyword::INSTRUCTION) || isFindKeySymbol(name, 0, name.size())) return false;
   m_ufunc[name] = move(ufunc);
   return true;
 }
-bool InterpreterImpl::addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority) {
+bool Interpreter::Impl::addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority) {
   if (name.empty() || (keywordByName(name) != Keyword::INSTRUCTION) || isFindKeySymbol(name, 0, name.size())) return false;
   m_uoper[name] = {move(uopr), priority};
   return true;
 }
-bool InterpreterImpl::addAttribute(const string& name) {
+bool Interpreter::Impl::addAttribute(const string& name) {
   m_attribute.insert(name);
   return true;
 }
 
-std::map<std::string, std::string> InterpreterImpl::allVariables() const {
+std::map<std::string, std::string> Interpreter::Impl::allVariables() const {
   return m_var;
 }
-std::string InterpreterImpl::variable(const std::string& vname) const {
+std::string Interpreter::Impl::variable(const std::string& vname) const {
   return m_var.find(vname) != m_var.end() ? m_var.at(vname) : "";
 }
-bool InterpreterImpl::setVariable(const std::string& vname, const std::string& value) {
+bool Interpreter::Impl::setVariable(const std::string& vname, const std::string& value) {
   m_var[vname] = value;
   return true;
 }
-std::string InterpreterImpl::runFunction(const std::string& fname, const std::vector<std::string>& args) {
+std::string Interpreter::Impl::runFunction(const std::string& fname, const std::vector<std::string>& args) {
   return m_ufunc.count(fname) ? m_ufunc[fname](args) : "";
 }
-bool InterpreterImpl::setMacro(const std::string& mname, const std::string& script) {
+bool Interpreter::Impl::setMacro(const std::string& mname, const std::string& script) {
   m_macro[mname] = script;
   return true;
 }
-bool InterpreterImpl::gotoOnLabel(const std::string& lname) {
+bool Interpreter::Impl::gotoOnLabel(const std::string& lname) {
   bool exist = m_label.find(lname) != m_label.end();
   if (exist)
     m_gotoIndex = m_label[lname];
   return exist;
 }
-void InterpreterImpl::exitFromScript() {
+void Interpreter::Impl::exitFromScript() {
   m_exit = true;
 }
-std::vector<Interpreter::Entity> InterpreterImpl::allEntities() {
+std::vector<Interpreter::Entity> Interpreter::Impl::allEntities() {
   std::vector<Interpreter::Entity> res;
   for (size_t i = 0; i < m_expr.size(); ++i) {    
     const auto& exp = m_expr[i];
@@ -299,7 +299,7 @@ std::vector<Interpreter::Entity> InterpreterImpl::allEntities() {
   }
   return res;
 }
-Interpreter::Entity InterpreterImpl::currentEntity() {
+Interpreter::Entity Interpreter::Impl::currentEntity() {
   if (m_currentIndex >= m_expr.size())
     return Interpreter::Entity{0};
   const auto& exp = m_expr[m_currentIndex];
@@ -307,7 +307,7 @@ Interpreter::Entity InterpreterImpl::currentEntity() {
       m_currentIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
   };
 }
-Interpreter::Entity InterpreterImpl::getEntityByIndex(size_t beginIndex) {
+Interpreter::Entity Interpreter::Impl::getEntityByIndex(size_t beginIndex) {
   if (beginIndex >= m_expr.size())
     return Interpreter::Entity{ 0 };
   const auto& exp = m_expr[beginIndex];
@@ -315,24 +315,24 @@ Interpreter::Entity InterpreterImpl::getEntityByIndex(size_t beginIndex) {
       beginIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
   };
 }
-string InterpreterImpl::getAttributeByIndex(size_t index) {
+string Interpreter::Impl::getAttributeByIndex(size_t index) {
   return m_exprAttribute.count(index) ? m_exprAttribute[index] : "";
 }
-bool InterpreterImpl::gotoOnEntity(size_t beginIndex) {
+bool Interpreter::Impl::gotoOnEntity(size_t beginIndex) {
   if (beginIndex < m_expr.size()) {
     m_gotoIndex = beginIndex;
     return true;
   }
   return false;
 }
-Interpreter::UserFunction InterpreterImpl::getUserFunction(const std::string& fname) {
+Interpreter::UserFunction Interpreter::Impl::getUserFunction(const std::string& fname) {
   return m_ufunc.count(fname) ? m_ufunc[fname] : nullptr;
 }
-Interpreter::UserOperator InterpreterImpl::getUserOperator(const std::string& oname) {
+Interpreter::UserOperator Interpreter::Impl::getUserOperator(const std::string& oname) {
   return m_uoper.count(oname) ? m_uoper[oname].first : nullptr;
 }
 
-string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
+string Interpreter::Impl::calcOperation(Keyword mainKeyword, size_t iExpr) {
 
   string g_result;
   switch (mainKeyword) {
@@ -364,7 +364,7 @@ string InterpreterImpl::calcOperation(Keyword mainKeyword, size_t iExpr) {
   }
   return g_result;
 }
-string InterpreterImpl::calcFunction(size_t iExpr) {
+string Interpreter::Impl::calcFunction(size_t iExpr) {
     
     string g_result;
     size_t iBegin = iExpr + 1;
@@ -408,7 +408,7 @@ string InterpreterImpl::calcFunction(size_t iExpr) {
     }
     return g_result;
 }
-string InterpreterImpl::calcCondition(size_t iExpr) {
+string Interpreter::Impl::calcCondition(size_t iExpr) {
 
   string g_result;
   size_t iBegin = iExpr + 1;
@@ -506,7 +506,7 @@ string InterpreterImpl::calcCondition(size_t iExpr) {
   }
   return g_result;
 }
-string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
+string Interpreter::Impl::calcExpression(size_t iBegin, size_t iEnd) {
 
   if (iBegin + 1 == iEnd) {
     if (m_expr[iBegin].keyw == Keyword::VARIABLE)
@@ -593,7 +593,7 @@ string InterpreterImpl::calcExpression(size_t iBegin, size_t iEnd) {
   }
   return g_result;
 }
-void InterpreterImpl::calcOperatorPriority(size_t iBegin, size_t iEnd, vector<Operatr>& oprs) {
+void Interpreter::Impl::calcOperatorPriority(size_t iBegin, size_t iEnd, vector<Operatr>& oprs) {
 
   size_t iLOpr = size_t(-1);
   for (size_t i = iBegin; i < iEnd;) {
@@ -653,7 +653,7 @@ void InterpreterImpl::calcOperatorPriority(size_t iBegin, size_t iEnd, vector<Op
   }
 }
 
-bool InterpreterImpl::parseInstructionScenar(string& scenar, size_t gpos) {
+bool Interpreter::Impl::parseInstructionScenar(string& scenar, size_t gpos) {
 
   size_t iExpr = m_expr.size(),
          cpos = 0;
@@ -795,7 +795,7 @@ bool InterpreterImpl::parseInstructionScenar(string& scenar, size_t gpos) {
       const string fbody = getIntroScenar(scenar, cpos, '{', '}');
       CHECK_PARSE_RETURN(fbody.empty());
 
-      InterpreterImpl fImpl = *this;
+      Interpreter::Impl fImpl = *this;
       fImpl.m_ufunc[fname] = nullptr;
 
       CHECK_PARSE_RETURN(!fImpl.parseScript(fbody, m_err));
@@ -814,7 +814,7 @@ bool InterpreterImpl::parseInstructionScenar(string& scenar, size_t gpos) {
   }
   return true;
 }
-bool InterpreterImpl::parseExpressionScenar(string& scenar, size_t gpos) {
+bool Interpreter::Impl::parseExpressionScenar(string& scenar, size_t gpos) {
 
   size_t iExpr = m_expr.size(),
          cpos = 0;
@@ -957,7 +957,7 @@ bool InterpreterImpl::parseExpressionScenar(string& scenar, size_t gpos) {
   }
   return true;
 }
-bool InterpreterImpl::parseArgumentScenar(string& scenar, size_t gpos) {
+bool Interpreter::Impl::parseArgumentScenar(string& scenar, size_t gpos) {
 
   size_t iExpr = m_expr.size(),
          cpos = 0,
@@ -982,7 +982,7 @@ bool InterpreterImpl::parseArgumentScenar(string& scenar, size_t gpos) {
   }
   return true;
 }
-bool InterpreterImpl::parseMacroArgs(const string& args, string& macro) {
+bool Interpreter::Impl::parseMacroArgs(const string& args, string& macro) {
 
   size_t ssz = args.size(),
          cpos = 0,
@@ -1016,7 +1016,7 @@ bool InterpreterImpl::parseMacroArgs(const string& args, string& macro) {
   return true;
 }
 
-string InterpreterImpl::getNextParam(const string& scenar, size_t& cpos, char symb) const {
+string Interpreter::Impl::getNextParam(const string& scenar, size_t& cpos, char symb) const {
   size_t pos = scenar.find(symb, cpos);
   string res;
   if (pos != string::npos) {
@@ -1025,7 +1025,7 @@ string InterpreterImpl::getNextParam(const string& scenar, size_t& cpos, char sy
   }
   return res;
 }
-string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) const {
+string Interpreter::Impl::getNextOperator(const string& scenar, size_t& cpos) const {
   size_t minp = string::npos;
   string opr;
   for (const auto& op : m_uoper) {
@@ -1041,7 +1041,7 @@ string InterpreterImpl::getNextOperator(const string& scenar, size_t& cpos) cons
   }
   return opr;
 }
-string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) const {
+string Interpreter::Impl::getOperatorAtFirst(const string& scenar, size_t& cpos) const {
   string opr;
   for (const auto& op : m_uoper) {
     if (startWith(scenar, cpos, op.first)) {
@@ -1052,7 +1052,7 @@ string InterpreterImpl::getOperatorAtFirst(const string& scenar, size_t& cpos) c
   cpos += opr.size();
   return opr;
 }
-string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) const {
+string Interpreter::Impl::getFunctionAtFirst(const string& scenar, size_t& cpos) const {
   string fName;
   for (const auto& f : m_ufunc) {
     if (startWith(scenar, cpos, f.first)) {
@@ -1063,7 +1063,7 @@ string InterpreterImpl::getFunctionAtFirst(const string& scenar, size_t& cpos) c
   cpos += fName.size();
   return fName;
 }
-string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) const {
+string Interpreter::Impl::getMacroAtFirst(const string& scenar, size_t& cpos) const {
   string mName;
   for (const auto& m : m_macro) {
     if (startWith(scenar, cpos, m.first)) {
@@ -1074,7 +1074,7 @@ string InterpreterImpl::getMacroAtFirst(const string& scenar, size_t& cpos) cons
   cpos += mName.size();
   return mName;
 }
-string InterpreterImpl::getAttributeAtFirst(const string& scenar, size_t& cpos) const {
+string Interpreter::Impl::getAttributeAtFirst(const string& scenar, size_t& cpos) const {
   string mName;
   for (const auto& m : m_attribute) {
     if (startWith(scenar, cpos, m)) {
@@ -1085,7 +1085,7 @@ string InterpreterImpl::getAttributeAtFirst(const string& scenar, size_t& cpos) 
   cpos += mName.size();
   return mName;
 }
-string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd) const {
+string Interpreter::Impl::getIntroScenar(const string& scenar, size_t& cpos, char symbBegin, char symbEnd) const {
   size_t ssz = scenar.size(),
     cp = cpos;
   int bordCnt = 0;
@@ -1103,7 +1103,7 @@ string InterpreterImpl::getIntroScenar(const string& scenar, size_t& cpos, char 
   return res;
 }
 
-bool InterpreterImpl::isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos) const {
+bool Interpreter::Impl::isFindKeySymbol(const string& scenar, size_t cpos, size_t maxpos) const {
   return (scenar.find('(', cpos) < maxpos) ||
     (scenar.find(')', cpos) < maxpos) ||
     (scenar.find('{', cpos) < maxpos) ||
@@ -1114,10 +1114,10 @@ bool InterpreterImpl::isFindKeySymbol(const string& scenar, size_t cpos, size_t 
     (scenar.find('"', cpos) < maxpos) ||
     (scenar.find('$', cpos) < maxpos);
 }
-bool InterpreterImpl::startWith(const string& str, size_t pos, const string& begin) const {
+bool Interpreter::Impl::startWith(const string& str, size_t pos, const string& begin) const {
   return (str.find(begin, pos) - pos) == 0;
 }
-bool InterpreterImpl::isNumber(const string& s) const {
+bool Interpreter::Impl::isNumber(const string& s) const {
   for (auto c : s) {
     if (!std::isdigit(c)) {
       return false;
@@ -1125,7 +1125,7 @@ bool InterpreterImpl::isNumber(const string& s) const {
   }
   return !s.empty();
 }
-InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) const {
+Interpreter::Impl::Keyword Interpreter::Impl::keywordByName(const string& oprName) const {
   Keyword nextOpr = Keyword::INSTRUCTION;
   if (oprName == "if") nextOpr = Keyword::IF;
   else if (oprName == "else") nextOpr = Keyword::ELSE;
@@ -1137,33 +1137,33 @@ InterpreterImpl::Keyword InterpreterImpl::keywordByName(const string& oprName) c
   else if (oprName == "continue") nextOpr = Keyword::CONTINUE;
   return nextOpr;
 }
-Interpreter::EntityType InterpreterImpl::keywordToEntityType(Keyword keyw) const {
+Interpreter::EntityType Interpreter::Impl::keywordToEntityType(Keyword keyw) const {
   switch (keyw){
-  case InterpreterImpl::Keyword::EXPRESSION: return Interpreter::EntityType::EXPRESSION;
-  case InterpreterImpl::Keyword::OPERATOR:   return Interpreter::EntityType::OPERATOR;
-  case InterpreterImpl::Keyword::WHILE:      return Interpreter::EntityType::WHILE;
-  case InterpreterImpl::Keyword::IF:         return Interpreter::EntityType::IF;
-  case InterpreterImpl::Keyword::ELSE:       return Interpreter::EntityType::ELSE;
-  case InterpreterImpl::Keyword::ELSE_IF:    return Interpreter::EntityType::ELSE_IF;
-  case InterpreterImpl::Keyword::BREAK:      return Interpreter::EntityType::BREAK;
-  case InterpreterImpl::Keyword::CONTINUE:   return Interpreter::EntityType::CONTINUE;
-  case InterpreterImpl::Keyword::FUNCTION:   return Interpreter::EntityType::FUNCTION;
-  case InterpreterImpl::Keyword::ARGUMENT:   return Interpreter::EntityType::ARGUMENT;
-  case InterpreterImpl::Keyword::VARIABLE:   return Interpreter::EntityType::VARIABLE;
-  case InterpreterImpl::Keyword::VALUE:      return Interpreter::EntityType::VALUE;
-  case InterpreterImpl::Keyword::GOTO:       return Interpreter::EntityType::GOTO;
+  case Interpreter::Impl::Keyword::EXPRESSION: return Interpreter::EntityType::EXPRESSION;
+  case Interpreter::Impl::Keyword::OPERATOR:   return Interpreter::EntityType::OPERATOR;
+  case Interpreter::Impl::Keyword::WHILE:      return Interpreter::EntityType::WHILE;
+  case Interpreter::Impl::Keyword::IF:         return Interpreter::EntityType::IF;
+  case Interpreter::Impl::Keyword::ELSE:       return Interpreter::EntityType::ELSE;
+  case Interpreter::Impl::Keyword::ELSE_IF:    return Interpreter::EntityType::ELSE_IF;
+  case Interpreter::Impl::Keyword::BREAK:      return Interpreter::EntityType::BREAK;
+  case Interpreter::Impl::Keyword::CONTINUE:   return Interpreter::EntityType::CONTINUE;
+  case Interpreter::Impl::Keyword::FUNCTION:   return Interpreter::EntityType::FUNCTION;
+  case Interpreter::Impl::Keyword::ARGUMENT:   return Interpreter::EntityType::ARGUMENT;
+  case Interpreter::Impl::Keyword::VARIABLE:   return Interpreter::EntityType::VARIABLE;
+  case Interpreter::Impl::Keyword::VALUE:      return Interpreter::EntityType::VALUE;
+  case Interpreter::Impl::Keyword::GOTO:       return Interpreter::EntityType::GOTO;
   default:                                   return Interpreter::EntityType::EXPRESSION;
   }  
 }
 
 Interpreter::Interpreter() {
-  m_d = new InterpreterImpl();
+  m_d = new Interpreter::Impl();
 }
 Interpreter::~Interpreter() {
   if (m_d) delete m_d;
 }
 Interpreter::Interpreter(const Interpreter& other) {
-  m_d = new InterpreterImpl();
+  m_d = new Interpreter::Impl();
   if (other.m_d)
     *m_d = *other.m_d;
 }

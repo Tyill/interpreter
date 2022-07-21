@@ -31,7 +31,6 @@
 #include <functional>
 #include <cstdint>
 
-class InterpreterImpl;
 
 class Interpreter {
 
@@ -167,5 +166,6 @@ public:
   //// Reflection part ////////////////////////////////////
 
 private:
-  InterpreterImpl* m_d = nullptr;
+  class Impl;
+  Impl* m_d = nullptr;
 };
