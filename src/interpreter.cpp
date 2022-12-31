@@ -394,7 +394,7 @@ string Interpreter::Impl::calcFunction(size_t iExpr) {
             impl.m_var[var.first] = var.second;
         }
         for (size_t i = 0; i < args.size(); ++i) {
-            impl.m_var["$arg" + to_string(i)] = args[i];
+            impl.m_var["$" + to_string(i)] = args[i];
         }
         
         g_result = impl.runScript();
@@ -988,7 +988,7 @@ bool Interpreter::Impl::parseMacroArgs(const string& args, string& macro) {
          cpos = 0,
          cp = 0;
   int bordCnt = 0;
-  int argIndex = 1;
+  int argIndex = 0;
 
   while (cp < ssz) {
     if (args[cp] == '(') ++bordCnt;

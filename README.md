@@ -259,10 +259,10 @@ int main(int argc, char* argv[])
   scenar = "$a = 1; $b = 2; function myFunc{ $a += $b; function myFunc2{ $a += $b; }; myFunc2(); }; myFunc()";
   res = ir.cmd(scenar); // 5
   
-  scenar = "$a = 0; function myFunc{ if ($arg0 > 1) $a = $arg0 * myFunc($arg0 - 1); else $a = 1; $a }; myFunc(5)";
+  scenar = "$a = 0; function myFunc{ if ($0 > 1) $a = $0 * myFunc($0 - 1); else $a = 1; $a }; myFunc(5)";
   res = ir.cmd(scenar); // 120
 
-  scenar = "function myFunc{ $arg0 += $arg1; }; myFunc(2, 3)";
+  scenar = "function myFunc{ $0 += $1; }; myFunc(2, 3)";
   res = ir.cmd(scenar); // 5
   
   return 0;

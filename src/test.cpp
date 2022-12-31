@@ -129,8 +129,8 @@ TEST_F(InprTest, functionTest){
 }
 TEST_F(InprTest, macrosTest){   
   EXPECT_TRUE(ir.cmd("$a = 5; #macro myMacr{$a = $a + 2;} #myMacr; #myMacr; #myMacr;") == "11");
-  EXPECT_TRUE(ir.cmd("$a = 5; #macro myMacr{ $a = $a + $1 + $1 + $2; } #myMacr(3,4);") == "15");
-  EXPECT_TRUE(ir.cmd("#macro RANGE{while(range($1))}; $a = 0; #RANGE(100) $a += 1; $a;") == "100");
+  EXPECT_TRUE(ir.cmd("$a = 5; #macro myMacr{ $a = $a + $0 + $0 + $1; } #myMacr(3,4);") == "15");
+  EXPECT_TRUE(ir.cmd("#macro RANGE{while(range($0))}; $a = 0; #RANGE(100) $a += 1; $a;") == "100");
 }
 TEST_F(InprTest, gotoTest){   
   EXPECT_TRUE(ir.cmd("$a = 5; $b = 2; goto l_jmp; $a = summ($a, $b); l_jmp: $a;") == "5");
@@ -153,8 +153,8 @@ TEST_F(InprTest, structureTest){
 TEST_F(InprTest, internFuncTest){ 
   EXPECT_TRUE(ir.cmd("$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()") == "3");
   EXPECT_TRUE(ir.cmd("$a = 1; $b = 2; function myFunc{ $a += $b; function myFunc2{ $a += $b; }; myFunc2(); }; myFunc()") == "5");
-  EXPECT_TRUE(ir.cmd("$a = 0; function myFunc{ if ($arg0 > 1) $a = $arg0 * myFunc($arg0 - 1); else $a = 1; $a }; myFunc(5)") == "120");
-  EXPECT_TRUE(ir.cmd("function myFunc{ $arg0 += $arg1; }; myFunc(2, 3)") == "5");
+  EXPECT_TRUE(ir.cmd("$a = 0; function myFunc{ if ($0 > 1) $a = $0 * myFunc($0 - 1); else $a = 1; $a }; myFunc(5)") == "120");
+  EXPECT_TRUE(ir.cmd("function myFunc{ $0 += $1; }; myFunc(2, 3)") == "5");
 }
 
 int main(int argc, char* argv[]){
