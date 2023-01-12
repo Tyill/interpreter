@@ -44,8 +44,8 @@ myFunc();                      // call
 ```
 With params
 ```
-function myFunc{ $arg0 += $arg1; };  // define
-myFunc(2, 3);                        // call       
+function myFunc{ $0 += $1; };  // define
+myFunc(2, 3);                  // call       
 ```
 
 ### User operators
@@ -101,9 +101,9 @@ Insert a macro with '#'
 $c = 5; #myMac;
 ```
 
-Insert a macro with params (index of param begin with 1)
+Insert a macro with params (index of param begin with 0)
 ```
-#macro myMacr{ $a = $a + $1 + $1 + $2; };
+#macro myMacr{ $a = $a + $0 + $0 + $1; };
 $a = 5;  #myMacr(3,4); // result 15
 ```
 
