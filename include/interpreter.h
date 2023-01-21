@@ -153,7 +153,7 @@ public:
   Entity getEntityByIndex(size_t beginIndex);
 
   /// Attribute by index
-  std::string getAttributeByIndex(size_t beginIndex);
+  std::vector<std::string> getAttributeByIndex(size_t beginIndex);
 
   /// Go-to on entity
   /// @return true - ok

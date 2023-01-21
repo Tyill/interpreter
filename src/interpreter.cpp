@@ -50,7 +50,7 @@ public:
   std::vector<Interpreter::Entity> allEntities();
   Interpreter::Entity currentEntity();
   Interpreter::Entity getEntityByIndex(size_t beginIndex);
-  string getAttributeByIndex(size_t beginIndex);
+  vector<string> getAttributeByIndex(size_t beginIndex);
   bool gotoOnEntity(size_t iBegin);
   Interpreter::UserFunction getUserFunction(const std::string& fname);
   Interpreter::UserOperator getUserOperator(const std::string& oname);
@@ -89,7 +89,7 @@ private:
   map<string, string> m_macro;
   map<string, size_t> m_label;
   set<string> m_attribute;
-  map<size_t, string> m_exprAttribute;
+  map<size_t, vector<string>> m_exprAttribute;
   map<size_t, vector<Operatr>> m_soper;
   map<string, Impl> m_internFunc;
   vector<Expression> m_expr;
@@ -315,8 +315,8 @@ Interpreter::Entity Interpreter::Impl::getEntityByIndex(size_t beginIndex) {
       beginIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
   };
 }
-string Interpreter::Impl::getAttributeByIndex(size_t index) {
-  return m_exprAttribute.count(index) ? m_exprAttribute[index] : "";
+vector<string> Interpreter::Impl::getAttributeByIndex(size_t index) {
+  return m_exprAttribute.count(index) ? m_exprAttribute[index] : vector<string>();
 }
 bool Interpreter::Impl::gotoOnEntity(size_t beginIndex) {
   if (beginIndex < m_expr.size()) {
@@ -670,6 +670,12 @@ bool Interpreter::Impl::parseInstructionScenar(string& scenar, size_t gpos) {
       ++cpos;
       continue;
     }    
+    string attr = getAttributeAtFirst(scenar, cpos);
+    while (!attr.empty()) {
+      m_exprAttribute[iExpr].push_back(attr);
+      attr = getAttributeAtFirst(scenar, cpos);
+    }
+
     size_t cposFunc = cpos,
            cposOpr = cpos;
     if (!getFunctionAtFirst(scenar, cposFunc).empty() || !getOperatorAtFirst(scenar, cposOpr).empty()) {
@@ -823,8 +829,9 @@ bool Interpreter::Impl::parseExpressionScenar(string& scenar, size_t gpos) {
   while (cpos < scenar.size()) {
 
     string attr = getAttributeAtFirst(scenar, cpos);
-    if (!attr.empty()) {
-      m_exprAttribute[iExpr] = attr;
+    while (!attr.empty()) {
+      m_exprAttribute[iExpr].push_back(attr);
+      attr = getAttributeAtFirst(scenar, cpos);
     }
     if (scenar[cpos] == '$') {
       size_t posmem = cpos;
@@ -1233,8 +1240,8 @@ Interpreter::Entity Interpreter::currentEntity() {
 Interpreter::Entity Interpreter::getEntityByIndex(size_t beginIndex) {
   return m_d ? m_d->getEntityByIndex(beginIndex) : Interpreter::Entity{ 0 };
 }
-std::string Interpreter::getAttributeByIndex(size_t beginIndex) {
-  return m_d ? m_d->getAttributeByIndex(beginIndex) : "";
+std::vector<std::string> Interpreter::getAttributeByIndex(size_t beginIndex) {
+  return m_d ? m_d->getAttributeByIndex(beginIndex) : std::vector<std::string>();
 }
 bool Interpreter::gotoOnEntity(size_t beginIndex) {
   return m_d ? m_d->gotoOnEntity(beginIndex) : false;
