@@ -153,7 +153,7 @@ TEST_F(InprTest, structureTest){
 TEST_F(InprTest, internFuncTest){ 
   EXPECT_TRUE(ir.cmd("$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()") == "3");
   EXPECT_TRUE(ir.cmd("$a = 1; $b = 2; function myFunc{ $a += $b; function myFunc2{ $a += $b; }; myFunc2(); }; myFunc()") == "5");
-  EXPECT_TRUE(ir.cmd("$a = 0; function myFunc{ if ($0 > 1) $a = $0 * myFunc($0 - 1); else $a = 1; $a }; myFunc(5)") == "120");
+  EXPECT_TRUE(ir.cmd("function myFunc{ if ($0 > 1) $a = $0 * myFunc($0 - 1); else $a = 1; $a }; myFunc(5)") == "120");
   EXPECT_TRUE(ir.cmd("function myFunc{ $0 += $1; }; myFunc(2, 3)") == "5");
 }
 
