@@ -152,6 +152,7 @@ bool Interpreter::Impl::parseScript(string scenar, string& err) {
     m_label.clear();
     m_soper.clear();
     m_err.clear();
+    m_internFunc.clear();
     if (!checkScenar(scenar, m_err) || !parseInstructionScenar(scenar, 0)) {
       m_prevScenar.clear();
       err = m_err;
@@ -366,47 +367,55 @@ string Interpreter::Impl::calcOperation(Keyword mainKeyword, size_t iExpr) {
 }
 string Interpreter::Impl::calcFunction(size_t iExpr) {
     
-    string g_result;
-    size_t iBegin = iExpr + 1;
-    size_t iEnd = m_expr[iExpr].iConditionEnd;
-    vector<string> args;
-    for (size_t i = iBegin; i < iEnd;) {
-        if ((i + 1 == m_expr[i].iBodyEnd - 1) && ((m_expr[i + 1].keyw == Keyword::VARIABLE) || (m_expr[i + 1].keyw == Keyword::VALUE))) {
-            if (m_expr[i + 1].keyw == Keyword::VARIABLE)
-                m_expr[i].result = m_var[m_expr[i + 1].params];
-            else
-                m_expr[i].result = m_expr[i + 1].params;
-        }
-        else {
-            m_expr[i].result = calcExpression(i + 1, m_expr[i].iBodyEnd);
-        }
-        args.emplace_back(m_expr[i].result);
-        i = m_expr[i].iBodyEnd;
-    }
-    m_currentIndex = iExpr;
-    const string& fname = m_expr[iExpr].params;
-    if (m_internFunc.count(fname)) {
-        auto& impl = m_internFunc[fname];    
-        for (auto& f : m_internFunc) {
-            impl.m_internFunc[f.first] = f.second;
-        }
-        for (auto& var : m_var) {
-            impl.m_var[var.first] = var.second;
-        }
-        for (size_t i = 0; i < args.size(); ++i) {
-            impl.m_var["$" + to_string(i)] = args[i];
-        }
-        
-        g_result = impl.runScript();
-        
-        for (auto& var : m_var) {
-            var.second = impl.m_var[var.first];
-        }
+  string g_result;
+  size_t iBegin = iExpr + 1;
+  size_t iEnd = m_expr[iExpr].iConditionEnd;
+  vector<string> args;
+  for (size_t i = iBegin; i < iEnd;) {
+    if ((i + 1 == m_expr[i].iBodyEnd - 1) && ((m_expr[i + 1].keyw == Keyword::VARIABLE) || (m_expr[i + 1].keyw == Keyword::VALUE))) {
+      if (m_expr[i + 1].keyw == Keyword::VARIABLE)
+        m_expr[i].result = m_var[m_expr[i + 1].params];
+      else
+        m_expr[i].result = m_expr[i + 1].params;
     }
     else {
-        g_result = m_ufunc[fname](args);
+      m_expr[i].result = calcExpression(i + 1, m_expr[i].iBodyEnd);
     }
-    return g_result;
+    args.emplace_back(m_expr[i].result);
+    i = m_expr[i].iBodyEnd;
+  }
+  m_currentIndex = iExpr;
+  const string& fname = m_expr[iExpr].params;
+  if (m_internFunc.count(fname)) {
+    auto impl = m_internFunc[fname];    
+    for (const auto& f : m_internFunc) {
+      if (!impl.m_internFunc.count(f.first)){
+        impl.m_internFunc[f.first] = f.second;
+      }
+    }
+    std::set<std::string> scopeVars;
+    for (const auto& var : m_var) {
+      if (impl.m_var.count(var.first)){
+        impl.m_var[var.first] = var.second;
+        scopeVars.insert(var.first);
+      }
+    }
+    for (size_t i = 0; i < args.size(); ++i) {
+      impl.m_var["$" + to_string(i)] = args[i];
+    }
+    
+    g_result = impl.runScript();
+    
+    for (const auto& var : impl.m_var) {
+      if (scopeVars.count(var.first)){
+        m_var[var.first] = var.second;
+      }
+    }
+  }
+  else {
+    g_result = m_ufunc[fname](args);
+  }
+  return g_result;
 }
 string Interpreter::Impl::calcCondition(size_t iExpr) {
 
@@ -806,8 +815,7 @@ bool Interpreter::Impl::parseInstructionScenar(string& scenar, size_t gpos) {
 
       CHECK_PARSE_RETURN(!fImpl.parseScript(fbody, m_err));
 
-      m_internFunc[fname] = fImpl;      
-      m_ufunc[fname] = nullptr;   
+      m_internFunc[fname] = fImpl;
     }
     else {
       m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
@@ -876,7 +884,7 @@ bool Interpreter::Impl::parseExpressionScenar(string& scenar, size_t gpos) {
       }
     }
     else if (!(fName = getFunctionAtFirst(scenar, cpos)).empty()) {
-      CHECK_PARSE_RETURN(m_ufunc.find(fName) == m_ufunc.end());
+      CHECK_PARSE_RETURN(!m_ufunc.count(fName) && !m_internFunc.count(fName));
 
       m_expr.emplace_back<Expression>({ Keyword::FUNCTION, iExpr, iExpr, size_t(-1), fName });
 
@@ -1065,6 +1073,14 @@ string Interpreter::Impl::getFunctionAtFirst(const string& scenar, size_t& cpos)
     if (startWith(scenar, cpos, f.first)) {
       if (fName.empty() || (fName.size() < f.first.size()))
         fName = f.first;
+    }
+  }
+  if (fName.empty()){
+    for (const auto& f : m_internFunc) {
+      if (startWith(scenar, cpos, f.first)) {
+        if (fName.empty() || (fName.size() < f.first.size()))
+          fName = f.first;
+      }
     }
   }
   cpos += fName.size();
