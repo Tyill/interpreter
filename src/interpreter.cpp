@@ -152,7 +152,6 @@ bool Interpreter::Impl::parseScript(string scenar, string& err) {
     m_label.clear();
     m_soper.clear();
     m_err.clear();
-    m_internFunc.clear();
     if (!checkScenar(scenar, m_err) || !parseInstructionScenar(scenar, 0)) {
       m_prevScenar.clear();
       err = m_err;
@@ -387,9 +386,9 @@ string Interpreter::Impl::calcFunction(size_t iExpr) {
   m_currentIndex = iExpr;
   const string& fname = m_expr[iExpr].params;
   if (m_internFunc.count(fname)) {
-    auto impl = m_internFunc[fname];    
+    auto& impl = m_internFunc[fname];    
     for (const auto& f : m_internFunc) {
-      if (!impl.m_internFunc.count(f.first)){
+      if (!impl.m_internFunc.count(f.first) || impl.m_internFunc[f.first].m_prevScenar.empty()){
         impl.m_internFunc[f.first] = f.second;
       }
     }
@@ -811,7 +810,7 @@ bool Interpreter::Impl::parseInstructionScenar(string& scenar, size_t gpos) {
       CHECK_PARSE_RETURN(fbody.empty());
 
       Interpreter::Impl fImpl = *this;
-      fImpl.m_ufunc[fname] = nullptr;
+      fImpl.m_internFunc[fname] = {};
 
       CHECK_PARSE_RETURN(!fImpl.parseScript(fbody, m_err));
 
