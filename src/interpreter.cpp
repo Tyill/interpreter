@@ -1190,8 +1190,7 @@ Interpreter::Interpreter(const Interpreter& other) {
     *m_d = *other.m_d;
 }
 Interpreter::Interpreter(Interpreter&& other) {
-  m_d = other.m_d;
-  other.m_d = nullptr;
+  std::swap(m_d, other.m_d);
 }
 Interpreter& Interpreter::operator=(const Interpreter& other) {
   if ((this != &other) && m_d && other.m_d)
@@ -1200,10 +1199,7 @@ Interpreter& Interpreter::operator=(const Interpreter& other) {
 }
 Interpreter& Interpreter::operator=(Interpreter&& other) {
   if (this != &other) {
-    if (m_d) delete m_d;
-
-    m_d = other.m_d;
-    other.m_d = nullptr;
+    std::swap(m_d, other.m_d);
   }
   return *this;
 }
