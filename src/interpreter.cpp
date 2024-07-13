@@ -189,12 +189,14 @@ void Interpreter::Impl::cleaningScenar(string& scenar) const {
   // del comments
   size_t commp = scenar.find("//");
   while (commp != string::npos) {
-    size_t endStr = scenar.find("\n");
-    if (endStr != string::npos)
+    size_t endStr = scenar.find("\n", commp);
+    if (endStr != string::npos){
       scenar.erase(commp, endStr - commp + 1);
-    else
+      commp = scenar.find("//", endStr);
+    }else{
       scenar.erase(commp);
-    commp = scenar.find("//");
+      break;
+    }
   }
 
   // save string "value"
