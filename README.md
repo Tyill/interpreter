@@ -51,9 +51,9 @@ myFunc(2, 3);                  // call
 ### User operators
 You can define any operators. Simple addition
 ```cpp
- ir.addOperator("=", [](string& opd1, string& opd2) ->string {
-    opd1 = opd2;
-    return opd1;
+ ir.addOperator("=", [](string& leftOpd, string& rightOpd) ->string {
+    leftOpd = rightOpd;
+    return leftOpd;
   }, 100);
 
  ir.addOperator("+=", [](string& leftOpd, string& rightOpd) ->string {
@@ -141,10 +141,10 @@ res = ir.cmd(scenar); // 22
 ### Containers from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/containers.h) 
 
 ```
-scenar = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
-res = ir.cmd(scenar); // 1 2 3
+scenar = "a = Vector{1,2,3}; a.push_back(4); a.push_back(5); while($v : a) print($v);";
+res = ir.cmd(scenar); // 1 2 3 4 5
 
-scenar = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
+scenar = "b = Map{myKeyOne: myValueOne}; b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
 res = ir.cmd(scenar); // myValueTwo
 ```
 
