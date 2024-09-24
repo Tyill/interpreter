@@ -28,6 +28,7 @@
 #include "../include/base_library/comparison_operations.h"
 #include "../include/base_library/containers.h"
 #include "../include/base_library/structure.h"
+#include "../include/base_library/types.h"
 
 using namespace std;
 
@@ -45,6 +46,7 @@ public:
   InprTest(): 
   ao_ir(ir),
   co_ir(ir),
+  ts_ir(ir),
   bc_ir(ir),
   st_ir(ir){
     
@@ -86,6 +88,7 @@ public:
   Interpreter ir;
   InterpreterBaseLib::ArithmeticOperations ao_ir;
   InterpreterBaseLib::ComparisonOperations co_ir;
+  InterpreterBaseLib::Types ts_ir;
   InterpreterBaseLib::Container bc_ir;
   InterpreterBaseLib::Structure st_ir;
 };
@@ -155,6 +158,10 @@ TEST_F(InprTest, internFuncTest){
   EXPECT_TRUE(ir.cmd("$a = 1; $b = 2; function myFunc{ $a += $b; function myFunc2{ $a += $b; }; myFunc2(); }; myFunc()") == "5");
   EXPECT_TRUE(ir.cmd("function myFunc{ if ($0 > 1) $a = $0 * myFunc($0 - 1); else $a = 1; $a }; myFunc(5)") == "120");
   EXPECT_TRUE(ir.cmd("function myFunc{ $0 += $1; }; myFunc(2, 3)") == "5");
+}
+TEST_F(InprTest, typesTest){ 
+  EXPECT_TRUE(ir.cmd("$a: int = 123; type($a)") == "int");
+  EXPECT_TRUE(ir.cmd("$b: str = \"abc\"; type($b)") == "str");
 }
 
 int main(int argc, char* argv[]){

@@ -175,6 +175,16 @@ res = ir.cmd(scenar);
 |`exist`()              |                     |
 |`remove`()             |                     |
 
+### Types from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/types.h) 
+
+```
+scenar = "a: int = 123; type(a)";
+res = ir.cmd(scenar); // int
+
+scenar = "b: str = "abc"; type(b)";
+res = ir.cmd(scenar); // str
+```
+
 ### Example of use
 
 ```cpp
@@ -185,6 +195,7 @@ res = ir.cmd(scenar);
 #include "../include/base_library/containers.h"
 #include "../include/base_library/filesystem.h"
 #include "../include/base_library/structure.h"
+#include "../include/base_library/types.h"
 #include <cctype>
 
 using namespace std;
@@ -264,6 +275,9 @@ int main(int argc, char* argv[])
 
   scenar = "function myFunc{ $0 += $1; }; myFunc(2, 3)";
   res = ir.cmd(scenar); // 5
+
+  scenar = "b: str = \"abc\"; type(b)";
+  res = ir.cmd(scenar); // str
   
   return 0;
 }

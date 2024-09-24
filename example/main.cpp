@@ -29,6 +29,7 @@
 #include "../include/base_library/containers.h"
 #include "../include/base_library/filesystem.h"
 #include "../include/base_library/structure.h"
+#include "../include/base_library/types.h"
 #include <cctype>
 
 using namespace std;
@@ -46,11 +47,12 @@ int main(int argc, char* argv[])
 {  
   Interpreter ir;
 
-  InterpreterBaseLib::ArithmeticOperations ao(ir);
-  InterpreterBaseLib::ComparisonOperations co(ir);
-  InterpreterBaseLib::Container bc(ir);
-  InterpreterBaseLib::Filesystem fs(ir);
-  InterpreterBaseLib::Structure st(ir);
+  InterpreterBaseLib::ArithmeticOperations ir_ao(ir);
+  InterpreterBaseLib::ComparisonOperations ir_co(ir);
+  InterpreterBaseLib::Types ir_tp(ir);
+  InterpreterBaseLib::Container ir_bc(ir);
+  InterpreterBaseLib::Filesystem ir_fs(ir);
+  InterpreterBaseLib::Structure ir_st(ir);
 
   ir.addFunction("summ", [](const vector<string>& args) ->string {
     int res = 0;
@@ -110,6 +112,9 @@ int main(int argc, char* argv[])
   scenar = "function myFunc{ $0 += $1; }; myFunc(2, 3)";
   res = ir.cmd(scenar); // 5
   
+  scenar = "b: str = 123; type(b)";
+  res = ir.cmd(scenar); // str
+
   return 0;
 }
 
