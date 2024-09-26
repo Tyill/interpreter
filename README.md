@@ -213,11 +213,12 @@ int main(int argc, char* argv[])
 {  
   Interpreter ir;
 
-  InterpreterBaseLib::ArithmeticOperations ao(ir);
-  InterpreterBaseLib::ComparisonOperations co(ir);
-  InterpreterBaseLib::Container bc(ir);
-  InterpreterBaseLib::Filesystem fs(ir);
-  InterpreterBaseLib::Structure st(ir);
+  InterpreterBaseLib::ArithmeticOperations ir_ao(ir);
+  InterpreterBaseLib::ComparisonOperations ir_co(ir);
+  InterpreterBaseLib::Types ir_tp(ir);
+  InterpreterBaseLib::Container ir_bc(ir);
+  InterpreterBaseLib::Filesystem ir_fs(ir);
+  InterpreterBaseLib::Structure ir_st(ir);
 
   ir.addFunction("summ", [](const vector<string>& args) ->string {
     int res = 0;
@@ -229,8 +230,9 @@ int main(int argc, char* argv[])
 
   ir.addFunction("print", [](const vector<string>& args) ->string {
     for (auto& v : args) {
-      printf("%s\n", v.c_str());
+      printf("%s ", v.c_str());
     }
+    printf("\n");
     return "";
   });
 
