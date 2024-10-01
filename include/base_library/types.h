@@ -9,8 +9,7 @@ namespace InterpreterBaseLib {
     Types(Interpreter& ir):
       m_intr(ir)
     {      
-      auto currOperator = ir.getUserOperator(":");
-      ir.addOperator(":", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
+      ir.addOperator(":", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
 
         m_types[leftOpd] = rightOpd;
         return leftOpd;
