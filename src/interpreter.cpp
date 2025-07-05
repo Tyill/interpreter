@@ -668,23 +668,25 @@ bool Interpreter::Impl::parseInstructionScript(string& script, size_t gpos) {
   size_t iExpr = m_expr.size(),
          cpos = 0;
 
-#define CHECK_PARSE_RETURN(condition)                                                                                                              \
+#define CHECK_PARSE_RETURN(condition)                                                                                                     \
     if (condition){                                                                                                                       \
         if (m_err.empty()) m_err = "Error script pos " + to_string(cpos + gpos) + " src line " + to_string(__LINE__) + ": " + #condition; \
         return false;                                                                                                                     \
-    }   
+    }
+#define SPARE_SYMBOL_CONTINUE                                                                       \
+    if (script[cpos] == ';' || script[cpos] == ',' || script[cpos] == ']' || script[cpos] == '[') { \
+      ++cpos;                                                                                       \
+      continue;                                                                                     \
+    }
 
   size_t iIF = size_t(-1);
   while (cpos < script.size()) {
-    if (script[cpos] == ';') {
-      ++cpos;
-      continue;
-    }    
+    SPARE_SYMBOL_CONTINUE
     string attr = getAttributeAtFirst(script, cpos);
-    while (!attr.empty()) {
+    if (!attr.empty()) {
       m_exprAttribute[iExpr].push_back(attr);
-      attr = getAttributeAtFirst(script, cpos);
     }
+    SPARE_SYMBOL_CONTINUE
 
     size_t cposFunc = cpos,
            cposOpr = cpos;
@@ -836,12 +838,13 @@ bool Interpreter::Impl::parseExpressionScript(string& script, size_t gpos) {
 
   string oprName, fName;
   while (cpos < script.size()) {
-
+    SPARE_SYMBOL_CONTINUE
     string attr = getAttributeAtFirst(script, cpos);
-    while (!attr.empty()) {
+    if (!attr.empty()) {
       m_exprAttribute[iExpr].push_back(attr);
-      attr = getAttributeAtFirst(script, cpos);
     }
+    SPARE_SYMBOL_CONTINUE
+    
     if (script[cpos] == '$') {
       size_t posmem = cpos;
       oprName = getNextOperator(script, cpos);

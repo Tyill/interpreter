@@ -30,6 +30,8 @@
 #include "../include/base_library/structure.h"
 #include "../include/base_library/types.h"
 
+#include <ostream>
+
 using namespace std;
 
 bool isNumber(const string& s) {
@@ -82,6 +84,16 @@ public:
     
     return cval < maxv ? to_string(cval + 1) : "0";
   });
+  ir.addFunction("getAttr", [pIr](const vector<string>& args) ->string {
+    auto attrs = pIr->getAttributeByIndex(pIr->currentEntity().beginIndex - 1);
+    std::ostringstream out;
+    std::copy(attrs.begin(), attrs.end(), std::ostream_iterator<std::string>(out, ",")); 
+    auto str = out.str();
+    return str.substr(0, str.size()-1);
+  });
+  ir.addAttribute("attr1");
+  ir.addAttribute("attr2");
+  ir.addAttribute("attr3");
   }
   ~InprTest() {   
   }
@@ -162,6 +174,9 @@ TEST_F(InprTest, internFuncTest){
 TEST_F(InprTest, typesTest){ 
   EXPECT_TRUE(ir.cmd("$a: int = 123; type($a)") == "int");
   EXPECT_TRUE(ir.cmd("$b: str = \"abc\"; type($b)") == "str");
+}
+TEST_F(InprTest, attributesTest){ 
+  EXPECT_TRUE(ir.cmd("[attr1,attr2,attr3] getAttr()") == "attr1,attr2,attr3");
 }
 
 int main(int argc, char* argv[]){
