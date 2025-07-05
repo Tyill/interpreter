@@ -685,9 +685,8 @@ bool Interpreter::Impl::parseInstructionScript(string& script, size_t gpos) {
     string attr = getAttributeAtFirst(script, cpos);
     if (!attr.empty()) {
       m_exprAttribute[iExpr].push_back(attr);
+      SPARE_SYMBOL_CONTINUE
     }
-    SPARE_SYMBOL_CONTINUE
-
     size_t cposFunc = cpos,
            cposOpr = cpos;
     if (!getFunctionAtFirst(script, cposFunc).empty() || !getOperatorAtFirst(script, cposOpr).empty()) {
@@ -842,9 +841,8 @@ bool Interpreter::Impl::parseExpressionScript(string& script, size_t gpos) {
     string attr = getAttributeAtFirst(script, cpos);
     if (!attr.empty()) {
       m_exprAttribute[iExpr].push_back(attr);
+      SPARE_SYMBOL_CONTINUE
     }
-    SPARE_SYMBOL_CONTINUE
-    
     if (script[cpos] == '$') {
       size_t posmem = cpos;
       oprName = getNextOperator(script, cpos);
