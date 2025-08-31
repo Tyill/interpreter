@@ -847,19 +847,29 @@ bool Interpreter::Impl::parseExpressionScript(string& script, size_t gpos) {
       size_t posmem = cpos;
       oprName = getNextOperator(script, cpos);
 
-      size_t bodyBegin = script.find('{', posmem);
-
+      size_t bodyBeginF = script.find('{', posmem);
+      size_t bodyBeginQ = script.find('[', posmem);
+      size_t bodyBegin = bodyBeginF;
+      char bodyBeginSym = '{', bodyEndSym = '}';
+      if (bodyBeginQ < bodyBeginF){
+        bodyBegin = bodyBeginQ;
+        bodyBeginSym = '[';
+        bodyEndSym = ']';
+      }
       if ((!oprName.empty() && (bodyBegin < cpos)) || (oprName.empty() && (bodyBegin != string::npos))) {
         const string vName = script.substr(posmem, bodyBegin - posmem);
-        string value = getIntroScript(script, bodyBegin, '{', '}');
+        string value = getIntroScript(script, bodyBegin, bodyBeginSym, bodyEndSym);
         if (!value.empty()) {
           if (value[0] == '"') 
             value = value.substr(1);
           if (!value.empty() && (value.back() == '"'))
             value.pop_back();
         }
-
         m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
+        if (oprName == "[" && bodyBeginSym == '['){
+          m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
+          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
+        }
         m_var[vName] = value;
 
         cpos = bodyBegin;
@@ -946,13 +956,23 @@ bool Interpreter::Impl::parseExpressionScript(string& script, size_t gpos) {
         size_t posmem = cpos;
         oprName = getNextOperator(script, cpos);
 
-        size_t bodyBegin = script.find('{', posmem);
-
+        size_t bodyBeginF = script.find('{', posmem);
+        size_t bodyBeginQ = script.find('[', posmem);
+        size_t bodyBegin = bodyBeginF;
+        char bodyBeginSym = '{', bodyEndSym = '}';
+        if (bodyBeginQ < bodyBeginF){
+          bodyBegin = bodyBeginQ;
+          bodyBeginSym = '[';
+          bodyEndSym = ']';
+        }
         if ((!oprName.empty() && (bodyBegin < cpos)) || (oprName.empty() && (bodyBegin != string::npos))) {
           const string vName = script.substr(posmem, bodyBegin - posmem);         
-          const string value = getIntroScript(script, bodyBegin, '{', '}');
+          const string value = getIntroScript(script, bodyBegin, bodyBeginSym, bodyEndSym);
           m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
-
+          if (oprName == "[" && bodyBeginSym == '['){
+            m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
+            m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
+          }
           cpos = bodyBegin;
         }
         else if (!oprName.empty()) {

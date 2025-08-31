@@ -76,10 +76,10 @@ int main(int argc, char* argv[])
   script = "$a{5}; $b{2}; $c = summ($a, ($a + ($a * ($b + $a))), summ(5)); $c;";
   res = ir.cmd(script); // 50
   
-  script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a.size()";
+  script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a[2]";
   res = ir.cmd(script); // 3
   
-  script = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
+  script = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b[\"myKeyTwo\"]";
   res = ir.cmd(script); // myValueTwo
   
   script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
