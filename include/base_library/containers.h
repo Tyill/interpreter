@@ -121,6 +121,33 @@ namespace InterpreterBaseLib {
         return leftOpd + '.' + rightOpd;
       }, 0);
 
+      currOperator = ir.getUserOperator("[");
+      ir.addOperator("[", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
+        if (m_vectorContr.count(leftOpd) || m_mapContr.count(leftOpd)) {
+          auto value = m_intr.getEntityByIndex(m_intr.currentEntity().beginIndex - 1).value;
+          Interpreter intrCopy = m_intr;
+          std::string err;
+          if (!value.empty() && intrCopy.parseScript(value, err)){
+            auto key = intrCopy.runScript();
+            if (m_vectorContr.count(leftOpd)){
+              auto ix = isNumber(key) ? stoi(key) : -1;
+              if (0 <= ix && ix < m_vectorContr[leftOpd].size()){
+                return m_vectorContr[leftOpd][ix];
+              }
+            }else if (m_mapContr[leftOpd].count(key)){
+              return m_mapContr[leftOpd][key];
+            }
+          } else if (value.empty()){
+            err = "error value.empty";
+          }
+          return err;
+        }
+        else if (currOperator) {
+          return currOperator(leftOpd, rightOpd);
+        }
+        return "0";
+      }, 0);
+
       currOperator = ir.getUserOperator(":");
       ir.addOperator(":", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
         if (m_vectorContr.count(rightOpd)) {

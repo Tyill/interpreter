@@ -150,15 +150,15 @@ res = ir.cmd(script); // myValueTwo
 
 | Vector                | Map                 |
 |-----------------------|---------------------|
-|`push_back`(value)     |`insert`(key, value) |
-|`pop_back`()           |`erase`(key)         |
-|`insert`(index, value) |`size`()             |
-|`erase`(index)         |`empty`()            |
-|`size`()               |`clear`()            |
-|`empty`()              |`at`(key)            |
-|`clear`()              |`set`(key)           |
-|`at`(index)            |                     |
-|`set`(index)           |                     |
+|`insert`(index, value) |`insert`(key, value) |
+|`push_back`(value)     |                     |
+|`pop_back`()           |                     |
+|`erase`(index)         |`erase`(key)         |
+|`size`()               |`size`()             |
+|`empty`()              |`empty`()            |
+|`clear`()              |`clear`()            |
+|`at`(index) OR `[key]` |`at`(key) OR `[key]` |
+|`set`(index)           |`set`(key)           |
 
 ### Filesystem from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/filesystem.h) 
 
@@ -242,10 +242,10 @@ int main(int argc, char* argv[])
   script = "$a = 5; $b = 2; $c = summ($a, ($a + ($a * ($b + $a))), summ(5)); $c;";
   res = ir.cmd(script); // 50
 
-  script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a.size()";
+  script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a[2]";
   res = ir.cmd(script); // 3
 
-  script = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
+  script = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b[\"myKeyTwo\"]";
   res = ir.cmd(script); // myValueTwo
 
   script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";

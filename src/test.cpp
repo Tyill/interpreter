@@ -158,7 +158,9 @@ TEST_F(InprTest, reflectionTest){
 }
 TEST_F(InprTest, containerTest){ 
   EXPECT_TRUE(ir.cmd("a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a.size()") == "3");
+  EXPECT_TRUE(ir.cmd("a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a[1 + 1]") == "3");
   EXPECT_TRUE(ir.cmd("b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)") == "myValueTwo");
+  EXPECT_TRUE(ir.cmd("b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b[\"myKeyTwo\"]") == "myValueTwo");
 }
 TEST_F(InprTest, structureTest){ 
   EXPECT_TRUE(ir.cmd("e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one") == "7");
