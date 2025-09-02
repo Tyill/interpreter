@@ -157,7 +157,7 @@ res = ir.cmd(script); // myValueTwo
 |`size`()               |`size`()             |
 |`empty`()              |`empty`()            |
 |`clear`()              |`clear`()            |
-|`at`(index) OR `[key]` |`at`(key) OR `[key]` |
+|`at`(index) OR `[index]` |`at`(key) OR `[key]` |
 |`set`(index)           |`set`(key)           |
 
 ### Filesystem from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/filesystem.h) 
@@ -290,4 +290,5 @@ int main(int argc, char* argv[])
 
 ### License
 Licensed under an [MIT-2.0]-[license](LICENSE).
+
 
