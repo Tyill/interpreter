@@ -15,7 +15,7 @@ ss << "$a = 5;"
       "  }"
       "}"
       "$b";
-string res = ir.cmd(ss.str()); // 9
+string res = cmdResultToString(ir.cmd(ss.str())); // 9
 ```
 
 ### User functions outside the script
@@ -132,20 +132,20 @@ l_myLabel1: $a = 4;
 
 ```
 script = "e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one";
-res = ir.cmd(script); // 7
+res = cmdResultToString(ir.cmd(script)); // 7
 
 script = "$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three";
-res = ir.cmd(script); // 22
+res = cmdResultToString(ir.cmd(script)); // 22
 ```
 
 ### Containers from [base lib](https://github.com/Tyill/interpreter/blob/main/include/base_library/containers.h) 
 
 ```
 script = "a = Vector{1,2,3}; a.push_back(4); a.push_back(5); while($v : a) print($v);";
-res = ir.cmd(script); // 1 2 3 4 5
+res = cmdResultToString(ir.cmd(script)); // 1 2 3 4 5
 
 script = "b = Map{myKeyOne: myValueOne}; b.insert(myKeyTwo, myValueTwo); b.at(myKeyTwo)";
-res = ir.cmd(script); // myValueTwo
+res = cmdResultToString(ir.cmd(script)); // myValueTwo
 ```
 
 | Vector                | Map                 |
@@ -165,7 +165,7 @@ res = ir.cmd(script); // myValueTwo
 ```
 script = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"};  \
           if (file1.exist()) { $data = file1.read(); file2.write($data); }";
-res = ir.cmd(script);
+res = cmdResultToString(ir.cmd(script));
 ```
 
 | File                  | Dir                 |
@@ -179,10 +179,10 @@ res = ir.cmd(script);
 
 ```
 script = "a: int = 123; type(a)";
-res = ir.cmd(script); // int
+res = cmdResultToString(ir.cmd(script)); // int
 
 script = "b: str = "abc"; type(b)";
-res = ir.cmd(script); // str
+res = cmdResultToString(ir.cmd(script)); // str
 ```
 
 ### Example of use
@@ -237,49 +237,49 @@ int main(int argc, char* argv[])
   });
 
   string script = "$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;";
-  string res = ir.cmd(script); // 9
+  string res = cmdResultToString(ir.cmd(script)); // 9
   
   script = "$a = 5; $b = 2; $c = summ($a, ($a + ($a * ($b + $a))), summ(5)); $c;";
-  res = ir.cmd(script); // 50
+  res = cmdResultToString(ir.cmd(script)); // 50
 
   script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a[2]";
-  res = ir.cmd(script); // 3
+  res = cmdResultToString(ir.cmd(script)); // 3
 
   script = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b[\"myKeyTwo\"]";
-  res = ir.cmd(script); // myValueTwo
+  res = cmdResultToString(ir.cmd(script)); // myValueTwo
 
   script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
-  res = ir.cmd(script); // 1 2 3
+  res = cmdResultToString(ir.cmd(script)); // 1 2 3
   
   script = "a = Vector{1 + 2, 2 + 3, 3 + 4}; while($v : a) print($v);";
-  res = ir.cmd(script); // 3 5 7
+  res = cmdResultToString(ir.cmd(script)); // 3 5 7
 
   script = "$b = 12; c = Map{ one : $b + 5, two : 2}; while($v : c) print($v);";
-  res = ir.cmd(script); // one 17 two 2
+  res = cmdResultToString(ir.cmd(script)); // one 17 two 2
 
   script = "e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one";
-  res = ir.cmd(script); // 7
+  res = cmdResultToString(ir.cmd(script)); // 7
 
   script = "$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three";
-  res = ir.cmd(script); // 22
+  res = cmdResultToString(ir.cmd(script)); // 22
 
   script = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"}; if (file1.exist()) { $data = file1.read(); file2.write($data); }";
-  res = ir.cmd(script);
+  res = cmdResultToString(ir.cmd(script));
   
   script = "$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()";
-  res = ir.cmd(script); // 3
+  res = cmdResultToString(ir.cmd(script)); // 3
   
   script = "$a = 1; $b = 2; function myFunc{ $a += $b; function myFunc2{ $a += $b; }; myFunc2(); }; myFunc()";
-  res = ir.cmd(script); // 5
+  res = cmdResultToString(ir.cmd(script)); // 5
   
   script = "$a = 0; function myFunc{ if ($0 > 1) $a = $0 * myFunc($0 - 1); else $a = 1; $a }; myFunc(5)";
-  res = ir.cmd(script); // 120
+  res = cmdResultToString(ir.cmd(script)); // 120
 
   script = "function myFunc{ $0 += $1; }; myFunc(2, 3)";
-  res = ir.cmd(script); // 5
+  res = cmdResultToString(ir.cmd(script)); // 5
 
   script = "b: str = \"abc\"; type(b)";
-  res = ir.cmd(script); // str
+  res = cmdResultToString(ir.cmd(script)); // str
   
   return 0;
 }
@@ -287,6 +287,13 @@ int main(int argc, char* argv[])
 
 ### [Tests](https://github.com/Tyill/interpreter/blob/main/src/test.cpp)
 
+### Documentation
+
+Extended guides: [docs/README.md](docs/README.md)
+
+### Benchmarks
+
+[docs/benchmarks.md](docs/benchmarks.md)
 
 ### License
 Licensed under an [MIT-2.0]-[license](LICENSE).

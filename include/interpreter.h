@@ -26,26 +26,42 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 #include <map>
 #include <functional>
+#include <variant>
+#include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <utility>
 
 
 class Interpreter {
 
 public:
-  using UserFunction = std::function<std::string(const std::vector<std::string>& args)>;
-  using UserOperator = std::function<std::string(std::string& ioLeftOperand, std::string& ioRightOperand)>;
-    
-  explicit 
+  enum class ControlFlow { Break, Continue };
+
+  struct Error {
+    enum class Kind { Parse, Runtime } kind = Kind::Parse;
+    size_t position = 0;
+    std::string message;
+    explicit operator bool() const { return !message.empty(); }
+  };
+
+  using Value = std::variant<bool, int64_t, double, std::string, ControlFlow>;
+  using CmdResult = std::pair<Value, Error>;
+  using UserFunction = std::function<Value(const std::vector<Value>& args)>;
+  using UserOperator = std::function<Value(Value& ioLeftOperand, Value& ioRightOperand)>;
+
+  explicit
   Interpreter();
   ~Interpreter();
 
   Interpreter(const Interpreter&);
-  Interpreter(Interpreter&&);
+  Interpreter(Interpreter&&) noexcept;
   Interpreter& operator=(const Interpreter&);  
-  Interpreter& operator=(Interpreter&&);
+  Interpreter& operator=(Interpreter&&) noexcept;
 
   /// Add function
   /// @param name
@@ -65,40 +81,38 @@ public:
   /// return true - ok
   bool addAttribute(const std::string& name);
    
-  /// Execute script (== parseScript + runScript)
+  /// Execute script (== parseScript + runScript). Re-parses when script text changes.
   /// @param script
-  /// @return result or error
-  std::string cmd(std::string script);
+  /// @return result and parse error (if any)
+  CmdResult cmd(std::string script);
 
-  /// Parse script
-  /// @param script
-  /// return true - ok
-  bool parseScript(std::string script, std::string& outErr);
+  /// Parse script; on failure outErr carries kind, position, and message.
+  bool parseScript(std::string script, Error& outErr);
 
-  /// Run script
-  /// return result
-  std::string runScript();
+  /// Run parsed script; second is runtime error (empty on success).
+  /// Use after parseScript on the same script text (AST cached via m_prevScript).
+  CmdResult runScript();
 
   /// All variables
   /// @return vname, value
-  std::map<std::string, std::string> allVariables() const;
+  std::map<std::string, Value> allVariables() const;
 
   /// Value of variable
   /// @param vname
   /// @return value
-  std::string variable(const std::string& vname) const;
+  Value variable(const std::string& vname) const;
 
   /// Run of user function
   /// @param fname
   /// @param args
   /// @return result
-  std::string runFunction(const std::string& fname, const std::vector<std::string>& args);
+  Value runFunction(const std::string& fname, const std::vector<Value>& args);
 
   /// Set value of variable
   /// @param vname
   /// @param value
   /// @return true - ok
-  bool setVariable(const std::string& vname, const std::string& value);
+  bool setVariable(const std::string& vname, const Value& value);
 
   /// Set macro
   /// @param mname
@@ -131,7 +145,10 @@ public:
     VARIABLE,
     VALUE,
     GOTO,
+    MACRO,
   };
+
+  static constexpr size_t NoLinkIndex = static_cast<size_t>(-1);
 
   /// Internal object
   struct Entity {
@@ -140,7 +157,8 @@ public:
     size_t bodyEndIndex;
     EntityType type;
     std::string name;
-    std::string value;
+    Value value{std::string{}};
+    size_t linkIndex = NoLinkIndex;
   };
 
   /// Get all entities
@@ -165,7 +183,29 @@ public:
 
   //// Reflection part ////////////////////////////////////
 
+  //// Value helpers ////////////////////////////////////
+
+  static std::string valueToString(const Value& v);
+  static Value valueFromLiteral(std::string_view s);
+  static bool valueIsTruthy(const Value& v);
+  static std::string valueAsString(const Value& v);
+  static std::string valueAsInitBody(const Value& v);
+  static std::string operandName(Interpreter& ir, const Value& opd);
+  static bool valueIsInteger(const Value& v);
+  static bool valueIsNumeric(const Value& v);
+  static int64_t valueAsInt64(const Value& v);
+  static std::vector<Value> makeParam(const std::string& s);
+  static std::vector<Value> makeParam(std::string_view s);
+  static std::string paramAsString(const std::vector<Value>& params);
+  static Value valueFromParams(const std::vector<Value>& params, const Value& fallback);
+  static std::string cmdResultToString(const CmdResult& r);
+  static bool hasError(const Error& err);
+  static bool isParseError(const Error& err);
+  static std::string_view valueAsStringView(const Value& v);
+  static bool valueEquals(const Value& a, const Value& b);
+  static int valueCompare(const Value& a, const Value& b);
+
 private:
   class Impl;
-  Impl* m_d = nullptr;
+  std::unique_ptr<Impl> m_d;
 };

@@ -1,5 +1,6 @@
 
 #include "../../include/interpreter.h"
+#include "containers.h"
 
 #include <cctype>
 #include <sstream>
@@ -8,15 +9,6 @@ namespace InterpreterBaseLib {
 
   class Structure {
   public:
-
-    bool isNumber(const std::string& s) const {
-      for (auto c : s) {
-        if (!std::isdigit(c)) {
-          return false;
-        }
-      }
-      return !s.empty();
-    }
 
     std::vector<std::string> split(const std::string& str, char sep) {
       std::vector<std::string> res;
@@ -30,84 +22,82 @@ namespace InterpreterBaseLib {
 
     Structure(Interpreter& ir):
       m_intr(ir)
-    {      
+    {
       auto currOperator = ir.getUserOperator("=");
-      ir.addOperator("=", [this, currOperator](std::string& leftOpd, std::string& rightOpd) ->std::string {
-        
-        if (rightOpd == "Struct") {
-          m_structContr[leftOpd] = "";
+      ir.addOperator("=", [this, currOperator](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        const std::string leftKey = Interpreter::operandName(m_intr, leftOpd);
+        const std::string rightKey = Interpreter::valueAsString(rightOpd);
+
+        if (rightKey == "Struct") {
+          m_structContr[leftKey] = std::string{};
 
           auto entityRight = m_intr.getEntityByIndex(m_intr.currentEntity().beginIndex + 1);
 
-          std::string& initBody = entityRight.value;
+          const std::string initBody = Interpreter::valueAsInitBody(entityRight.value);
 
           if (!initBody.empty()) {
-
-            size_t ssz = initBody.size(),
-              cpos = 0,
-              cp = 0;
-            int bordCnt = 0;
-
             Interpreter intrCopy = m_intr;
-
-            while (cp < ssz) {
-              if (initBody[cp] == '(') ++bordCnt;
-              if (initBody[cp] == ')') --bordCnt;
-              if (((initBody[cp] == ',') || (cp == ssz - 1)) && (bordCnt == 0)) {
-
-                if (cp == ssz - 1) ++cp;
-
-                auto args = split(initBody.substr(cpos, cp - cpos), ':');
-                std::string err;
-                if ((args.size() > 1) && intrCopy.parseScript(args[1], err))
-                  m_structContr[leftOpd + '.' + args[0]] = intrCopy.runScript();
-                else if (!args.empty())
-                  m_structContr[leftOpd + '.' + args[0]] = "";
-
-                cpos = cp + 1;
+            foreachCommaInitBody(initBody, [&](const std::string& segment) {
+              auto args = split(segment, ':');
+              Interpreter::Error err;
+              if ((args.size() > 1) && intrCopy.parseScript(args[1], err)) {
+                m_structContr[leftKey + '.' + args[0]] = intrCopy.runScript().first;
               }
-              ++cp;
-            }
-          }         
+              else if (!args.empty()) {
+                m_structContr[leftKey + '.' + args[0]] = std::string{};
+              }
+            });
+          }
         }
-        else if (m_structContr.count(leftOpd)) {
-          m_structContr[leftOpd] = rightOpd;
+        else {
+          const std::string leftFull = Interpreter::valueAsString(leftOpd);
+          if (leftFull.find('.') != std::string::npos) {
+            m_structContr[leftFull] = rightOpd;
+            leftOpd = rightOpd;
+            return rightOpd;
+          }
+        }
+        if (m_structContr.count(leftKey)) {
+          m_structContr[leftKey] = rightOpd;
           return rightOpd;
         }
         else if (currOperator){
           return currOperator(leftOpd, rightOpd);
         }
-        return leftOpd + '=' + rightOpd;
+        return Interpreter::valueAsString(leftOpd) + '=' + Interpreter::valueAsString(rightOpd);
       }, 100);
 
       currOperator = ir.getUserOperator(".");
-      ir.addOperator(".", [this, currOperator](std::string& leftOpd, std::string& rightOpd) -> std::string {
-        
-        if (m_structContr.count(leftOpd)) {
+      ir.addOperator(".", [this, currOperator](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        const std::string leftKey = Interpreter::operandName(m_intr, leftOpd);
+        const std::string rightKey = Interpreter::valueAsString(rightOpd);
+
+        if (m_structContr.count(leftKey)) {
 
           if (isEqualOfNextOperator(m_intr.currentEntity().beginIndex)) {
-            if (!m_structContr.count(leftOpd + '.' + rightOpd))
-              m_structContr[leftOpd + '.' + rightOpd] = "";
-            return leftOpd + '.' + rightOpd;
+            const std::string fieldKey = leftKey + '.' + rightKey;
+            if (!m_structContr.count(fieldKey))
+              m_structContr[fieldKey] = std::string{};
+            return fieldKey;
           }
           else {
-            return m_structContr[leftOpd + '.' + rightOpd];
-          }          
+            return m_structContr[leftKey + '.' + rightKey];
+          }
         }
         else if (currOperator) {
           return currOperator(leftOpd, rightOpd);
         }
-        return leftOpd + '.' + rightOpd;
+        return Interpreter::valueAsString(leftOpd) + '.' + Interpreter::valueAsString(rightOpd);
       }, 0);
     }
 
     bool isEqualOfNextOperator(size_t beginIndex){
-            
-      return m_intr.getEntityByIndex(beginIndex + 2).name == "=";        
+
+      return m_intr.getEntityByIndex(beginIndex + 2).name == "=";
     }
 
   protected:
     Interpreter& m_intr;
-    std::map<std::string, std::string> m_structContr;
+    std::map<std::string, Interpreter::Value> m_structContr;
   };
 }
