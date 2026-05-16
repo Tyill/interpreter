@@ -35,106 +35,26 @@
 #include <type_traits>
 #include <utility>
 
-// --- value detail (ir) ---
+// --- ir::detail (declarations) ---
 
 namespace ir {
 namespace detail {
 
 constexpr size_t kNoIndex = static_cast<size_t>(-1);
 
-inline bool isDigits(std::string_view s) {
-  if (s.empty()) {
-    return false;
-  }
-  for (unsigned char c : s) {
-    if (!std::isdigit(c)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-inline std::optional<int64_t> parseInteger(std::string_view s) {
-  if (!isDigits(s)) {
-    return std::nullopt;
-  }
-  int64_t v = 0;
-  for (char c : s) {
-    v = v * 10 + (c - '0');
-  }
-  return v;
-}
-
-inline std::optional<Interpreter::Value> parseNumber(std::string_view s) {
-  if (s.empty()) {
-    return std::nullopt;
-  }
-  size_t i = 0;
-  bool neg = false;
-  if (s[0] == '-') {
-    neg = true;
-    i = 1;
-  }
-  if (i >= s.size()) {
-    return std::nullopt;
-  }
-  const size_t dot = s.find('.', i);
-  if (dot != std::string_view::npos) {
-    const auto intPart = parseInteger(s.substr(i, dot - i));
-    const auto fracPart = parseInteger(s.substr(dot + 1));
-    if (!intPart || !fracPart) {
-      return std::nullopt;
-    }
-    double whole = static_cast<double>(*intPart);
-    double frac = static_cast<double>(*fracPart);
-    size_t fracLen = s.size() - dot - 1;
-    for (size_t p = 0; p < fracLen; ++p) {
-      frac /= 10.0;
-    }
-    double v = whole + frac;
-    return neg ? Interpreter::Value{-v} : Interpreter::Value{v};
-  }
-  if (auto n = parseInteger(s.substr(i))) {
-    return neg ? Interpreter::Value{-*n} : Interpreter::Value{*n};
-  }
-  return std::nullopt;
-}
-
-inline const std::string& paramKey(const std::vector<Interpreter::Value>& params) {
-  static const std::string kEmpty;
-  if (params.empty()) {
-    return kEmpty;
-  }
-  if (const auto* s = std::get_if<std::string>(&params[0])) {
-    return *s;
-  }
-  return kEmpty;
-}
-
-inline size_t paramIndex(const std::vector<Interpreter::Value>& params) {
-  if (params.empty()) {
-    return kNoIndex;
-  }
-  if (const auto* i = std::get_if<int64_t>(&params[0])) {
-    return static_cast<size_t>(*i);
-  }
-  if (const auto* s = std::get_if<std::string>(&params[0])) {
-    if (auto n = parseInteger(*s)) {
-      return static_cast<size_t>(*n);
-    }
-  }
-  return kNoIndex;
-}
-
-inline bool isBreakValue(const Interpreter::Value& v) {
-  const auto* cf = std::get_if<Interpreter::ControlFlow>(&v);
-  return cf && *cf == Interpreter::ControlFlow::Break;
-}
-
-inline bool isContinueValue(const Interpreter::Value& v) {
-  const auto* cf = std::get_if<Interpreter::ControlFlow>(&v);
-  return cf && *cf == Interpreter::ControlFlow::Continue;
-}
+bool isDigits(std::string_view s);
+std::optional<int64_t> parseInteger(std::string_view s);
+std::optional<Interpreter::Value> parseNumber(std::string_view s);
+bool isIdentContinue(unsigned char c);
+bool matchKeywordAt(std::string_view script, size_t cpos, std::string_view kw);
+Interpreter::Value parseLiteralText(std::string_view s);
+Interpreter::Value parseQuotedLiteral(std::string s);
+Interpreter::Value valueOfValueExpr(const Interpreter::Value& result,
+    const std::vector<Interpreter::Value>& params);
+const std::string& paramKey(const std::vector<Interpreter::Value>& params);
+size_t paramIndex(const std::vector<Interpreter::Value>& params);
+bool isBreakValue(const Interpreter::Value& v);
+bool isContinueValue(const Interpreter::Value& v);
 
 } // namespace detail
 } // namespace ir
@@ -227,6 +147,7 @@ private:
   bool parseInstrControlFlow(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr, size_t& iIF);
   bool parseInstrElse(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr, size_t iIF);
   bool parseInstrMacro(std::string& script, size_t& cpos, size_t gpos);
+  bool expandAllMacros(std::string& script);
   bool parseInstrGotoLabel(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr);
   bool parseInstrFunctionDecl(std::string& script, size_t& cpos, size_t gpos);
   bool parseInstrStatementExpr(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr);
@@ -286,105 +207,6 @@ void Interpreter::Impl::emplaceExprAt(size_t iExpr, Keyword keyw,
     std::move(params), std::move(result)});
 }
 
-Interpreter::Entity Interpreter::Impl::makeEntity(size_t index, const Expression& exp) const {
-  Interpreter::Entity entity{
-    index, exp.iConditionEnd, exp.iBodyEnd,
-    keywordToEntityType(exp.keyw), ir::detail::paramKey(exp.params), exp.result
-  };
-  if (exp.keyw == Keyword::ELSE || exp.keyw == Keyword::ELSE_IF) {
-    entity.linkIndex = ir::detail::paramIndex(exp.params);
-  }
-  return entity;
-}
-
-Interpreter::Impl Interpreter::Impl::makeChildImplForParse() const {
-  Impl child;
-  child.m_ufunc = m_ufunc;
-  child.m_uoper = m_uoper;
-  child.m_macro = m_macro;
-  child.m_attribute = m_attribute;
-  child.m_internFunc = m_internFunc;
-  return child;
-}
-
-bool Interpreter::Impl::failParse(size_t cpos, size_t gpos, const char* what) {
-  if (m_parseErr.message.empty()) {
-    m_parseErr.kind = Interpreter::Error::Kind::Parse;
-    m_parseErr.position = cpos + gpos;
-    m_parseErr.message = "Error script pos " + std::to_string(m_parseErr.position) + ": " + what;
-  }
-  return false;
-}
-
-bool Interpreter::Impl::failCheck(std::string& err, const char* what) { // NOLINT(readability-make-member-function-const)
-  if (err.empty()) {
-    err = std::string("Error check script: ") + what;
-  }
-  return false;
-}
-
-Interpreter::Impl::ParseInitOutcome Interpreter::Impl::parseNamedInitBody(
-    Keyword entityKw, bool bindVariable,
-    std::string& script, size_t& cpos, size_t& iExpr,
-    size_t posmem, const std::string& oprName) {
-  const size_t bodyBeginF = script.find('{', posmem);
-  const size_t bodyBeginQ = script.find('[', posmem);
-  size_t bodyBegin = bodyBeginF;
-  char bodyBeginSym = '{';
-  char bodyEndSym = '}';
-  if (bodyBeginQ < bodyBeginF) {
-    bodyBegin = bodyBeginQ;
-    bodyBeginSym = '[';
-    bodyEndSym = ']';
-  }
-  if ((!oprName.empty() && (bodyBegin < cpos)) ||
-      (oprName.empty() && (bodyBegin != std::string::npos))) {
-    const std::string vName = script.substr(posmem, bodyBegin - posmem);
-    std::string value = getIntroScript(script, bodyBegin, bodyBeginSym, bodyEndSym);
-    if (!value.empty()) {
-      if (value.front() == '"') {
-        value.erase(value.begin());
-      }
-      if (!value.empty() && value.back() == '"') {
-        value.pop_back();
-      }
-    }
-    if (entityKw == Keyword::VARIABLE) {
-      emplaceExpr(iExpr, Keyword::VARIABLE, Interpreter::makeParam(vName), Interpreter::valueFromLiteral(value));
-    }
-    else {
-      emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(vName), std::string{value});
-    }
-    if (oprName == "[" && bodyBeginSym == '[') {
-      emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(oprName));
-      emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(vName), std::string{value});
-    }
-    if (bindVariable) {
-      m_var[vName] = Interpreter::valueFromLiteral(value);
-    }
-    cpos = bodyBegin;
-    return ParseInitOutcome::Handled;
-  }
-  if (!oprName.empty()) {
-    const std::string vName = script.substr(posmem, cpos - posmem - oprName.size());
-    if (bindVariable && m_var.find(vName) == m_var.end()) {
-      m_var.insert({vName, std::string{}});
-    }
-    emplaceExpr(iExpr, entityKw, Interpreter::makeParam(vName));
-    emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(oprName));
-    return ParseInitOutcome::Handled;
-  }
-  std::string vName = script.substr(cpos);
-  if (!vName.empty() && vName.back() == ';') {
-    vName.pop_back();
-  }
-  if (bindVariable && m_var.find(vName) == m_var.end()) {
-    m_var.insert({vName, std::string{}});
-  }
-  emplaceExprAt(iExpr, entityKw, Interpreter::makeParam(vName));
-  return ParseInitOutcome::BreakLoop;
-}
-
 // --- eval ---
 
 Interpreter::CmdResult Interpreter::Impl::cmd(std::string script) {
@@ -410,6 +232,18 @@ bool Interpreter::Impl::parseScript(std::string script, Interpreter::Error& outE
 
   if (script.back() != ';') {
     script += ';';
+  }
+
+  if (!expandAllMacros(script)) {
+    m_prevScript.clear();
+    if (!m_parseErr.message.empty()) {
+      outErr = m_parseErr;
+    }
+    else {
+      outErr.kind = Interpreter::Error::Kind::Parse;
+      outErr.message = "Error: macro expansion failed";
+    }
+    return false;
   }
 
   if (m_prevScript != script) {
@@ -498,6 +332,13 @@ void Interpreter::Impl::cleaningScript(std::string& script) const {
   script = std::move(out);
 }
 
+bool Interpreter::Impl::failCheck(std::string& err, const char* what) { // NOLINT(readability-make-member-function-const)
+  if (err.empty()) {
+    err = std::string("Error check script: ") + what;
+  }
+  return false;
+}
+
 bool Interpreter::Impl::checkScript(const std::string& script, std::string& err) const {
   if (std::count(script.begin(), script.end(), '{') != std::count(script.begin(), script.end(), '}')) {
     return failCheck(err, "{ } mismatch");
@@ -541,7 +382,11 @@ Interpreter::Value Interpreter::Impl::runFunction(const std::string& fname, cons
   return m_ufunc.count(fname) ? m_ufunc[fname](args) : Interpreter::Value{std::string{}};
 }
 bool Interpreter::Impl::setMacro(const std::string& mname, const std::string& script) {
-  m_macro[mname] = script;
+  if (mname.empty()) {
+    return false;
+  }
+  const std::string key = (mname.front() == '#') ? mname : "#" + mname;
+  m_macro[key] = script;
   return true;
 }
 bool Interpreter::Impl::gotoOnLabel(const std::string& lname) {
@@ -555,6 +400,18 @@ bool Interpreter::Impl::gotoOnLabel(const std::string& lname) {
 void Interpreter::Impl::exitFromScript() {
   m_exit = true;
 }
+
+Interpreter::Entity Interpreter::Impl::makeEntity(size_t index, const Expression& exp) const {
+  Interpreter::Entity entity{
+    index, exp.iConditionEnd, exp.iBodyEnd,
+    keywordToEntityType(exp.keyw), ir::detail::paramKey(exp.params), exp.result
+  };
+  if (exp.keyw == Keyword::ELSE || exp.keyw == Keyword::ELSE_IF) {
+    entity.linkIndex = ir::detail::paramIndex(exp.params);
+  }
+  return entity;
+}
+
 std::vector<Interpreter::Entity> Interpreter::Impl::allEntities() const {
   std::vector<Interpreter::Entity> res;
   res.reserve(m_expr.size());
@@ -601,7 +458,7 @@ Interpreter::Value Interpreter::Impl::calcOperation(Keyword mainKeyword, size_t 
     g_result = variableByKey(ir::detail::paramKey(m_expr[iExpr].params));
     break;
   case Keyword::VALUE:
-    g_result = Interpreter::valueFromParams(m_expr[iExpr].params, m_expr[iExpr].result);
+    g_result = ir::detail::valueOfValueExpr(m_expr[iExpr].result, m_expr[iExpr].params);
     break;
   case Keyword::EXPRESSION:
     g_result = m_expr[iExpr].result = calcExpression(iExpr + 1, m_expr[iExpr].iBodyEnd);
@@ -639,7 +496,7 @@ Interpreter::Value Interpreter::Impl::calcFunction(size_t iExpr) {
       if (m_expr[i + 1].keyw == Keyword::VARIABLE)
         m_expr[i].result = variableByKey(ir::detail::paramKey(m_expr[i + 1].params));
       else
-        m_expr[i].result = Interpreter::valueFromParams(m_expr[i + 1].params, m_expr[i + 1].result);
+        m_expr[i].result = ir::detail::valueOfValueExpr(m_expr[i + 1].result, m_expr[i + 1].params);
     }
     else {
       m_expr[i].result = calcExpression(i + 1, m_expr[i].iBodyEnd);
@@ -845,15 +702,39 @@ void Interpreter::Impl::calcOperatorPriority(size_t iBegin, size_t iEnd, std::ve
     iLOpr = i;
     ++i;
   }
-
-  if (oprs.size() > 1) {
-    std::sort(oprs.begin(), oprs.end(), [](const Operator& l, const Operator& r) {
-      return l.priority < r.priority;
-    });
+  const auto osz = oprs.size();
+  if (osz > 1) {
+    if (osz == 2) {
+      if (oprs[0].priority > oprs[1].priority) std::swap(oprs[0], oprs[1]);
+    }
+    else if (osz == 3) {
+      if (oprs[0].priority < oprs[1].priority) {
+        if (oprs[2].priority < oprs[0].priority) std::swap(oprs[0], oprs[2]);
+      }
+      else {
+        if (oprs[1].priority < oprs[2].priority) std::swap(oprs[0], oprs[1]);
+        else std::swap(oprs[0], oprs[2]);
+      }
+      if (oprs[2].priority < oprs[1].priority) std::swap(oprs[1], oprs[2]);
+    }
+    else{
+      std::sort(oprs.begin(), oprs.end(), [](const Operator& l, const Operator& r) {
+        return l.priority < r.priority;
+      });
+    }
   }
 }
 
 // --- parse ---
+
+bool Interpreter::Impl::failParse(size_t cpos, size_t gpos, const char* what) {
+  if (m_parseErr.message.empty()) {
+    m_parseErr.kind = Interpreter::Error::Kind::Parse;
+    m_parseErr.position = cpos + gpos;
+    m_parseErr.message = "Error script pos " + std::to_string(m_parseErr.position) + ": " + what;
+  }
+  return false;
+}
 
 bool Interpreter::Impl::skipOneSpareSymbol(const std::string& script, size_t& cpos) {
   if (cpos >= script.size()) {
@@ -979,6 +860,73 @@ bool Interpreter::Impl::parseInstrElse(std::string& script, size_t& cpos, size_t
   return true;
 }
 
+bool Interpreter::Impl::expandAllMacros(std::string& script) {
+  size_t cpos = 0;
+  while (cpos < script.size()) {
+    if (skipOneSpareSymbol(script, cpos)) {
+      continue;
+    }
+
+    if (!startWith(script, cpos, "#macro")) {
+      ++cpos;
+      continue;
+    }
+
+    const size_t declStart = cpos;
+    cpos += 6;
+    const std::string mname = getNextParam(script, cpos, '{');
+
+    --cpos;
+    const std::string mvalue = getIntroScript(script, cpos, '{', '}');
+    if (mname.empty() || mvalue.empty()) {
+      return failParse(cpos, 0, "empty macro declaration");
+    }
+
+    m_macro["#" + mname] = mvalue;
+
+    size_t declEnd = cpos;
+    if ((declEnd < script.size()) && (script[declEnd] == ';')) {
+      ++declEnd;
+    }
+    script.erase(declStart, declEnd - declStart);
+    cpos = declStart;
+  }
+
+  cpos = 0;
+  while (cpos < script.size()) {
+    if (skipOneSpareSymbol(script, cpos)) {
+      continue;
+    }
+
+    if (script[cpos] != '#') {
+      ++cpos;
+      continue;
+    }
+
+    size_t cposMName = cpos;
+    const std::string mname = getMacroAtFirst(script, cposMName);
+    if (mname.empty() || (m_macro.find(mname) == m_macro.end())) {
+      return failParse(cpos, 0, "unknown macro");
+    }
+
+    size_t cposArg = cposMName;
+    const std::string args = getIntroScript(script, cposArg, '(', ')');
+    std::string macro = m_macro[mname];
+    if (!args.empty() && !parseMacroArgs(args, macro)) {
+      return failParse(cpos, 0, "invalid macro arguments");
+    }
+    cleaningScript(macro);
+
+    if (cposArg == cposMName) {
+      script.replace(cpos, mname.size(), macro);
+    }
+    else {
+      script.replace(cpos, (mname + "(" + args + ")").size(), macro);
+    }
+  }
+  return true;
+}
+
 bool Interpreter::Impl::parseInstrMacro(std::string& script, size_t& cpos, size_t gpos) {
   if (startWith(script, cpos, "#macro")) {
     cpos += 6;
@@ -1014,6 +962,7 @@ bool Interpreter::Impl::parseInstrMacro(std::string& script, size_t& cpos, size_
   if (!args.empty() && !parseMacroArgs(args, macro)) {
     return failParse(cpos, gpos, "invalid macro arguments");
   }
+  cleaningScript(macro);
 
   if (cposArg == cposMName) {
     script.replace(cpos, mname.size(), macro);
@@ -1052,6 +1001,16 @@ bool Interpreter::Impl::parseInstrGotoLabel(std::string& script, size_t& cpos, s
 
   m_label[lname] = iExpr;
   return true;
+}
+
+Interpreter::Impl Interpreter::Impl::makeChildImplForParse() const {
+  Impl child;
+  child.m_ufunc = m_ufunc;
+  child.m_uoper = m_uoper;
+  child.m_macro = m_macro;
+  child.m_attribute = m_attribute;
+  child.m_internFunc = m_internFunc;
+  return child;
 }
 
 bool Interpreter::Impl::parseInstrFunctionDecl(std::string& script, size_t& cpos, size_t gpos) {
@@ -1159,11 +1118,12 @@ bool Interpreter::Impl::parseInstructionScript(std::string& script, size_t gpos)
       return false;
     }
   }
+  m_prevScript = script;
   return true;
 }
 
 void Interpreter::Impl::emplaceSyntheticNegatePrefix(size_t& iExpr) {
-  emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(std::string_view{}), int64_t{0});
+  emplaceExpr(iExpr, Keyword::VALUE, {}, int64_t{0});
   emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(std::string{"-"}));
 }
 
@@ -1194,6 +1154,68 @@ void Interpreter::Impl::writeBackScope(Impl& callee, const std::set<std::string>
       m_var[var.first] = var.second;
     }
   }
+}
+
+Interpreter::Impl::ParseInitOutcome Interpreter::Impl::parseNamedInitBody(
+    Keyword entityKw, bool bindVariable,
+    std::string& script, size_t& cpos, size_t& iExpr,
+    size_t posmem, const std::string& oprName) {
+  const size_t bodyBeginF = script.find('{', posmem);
+  const size_t bodyBeginQ = script.find('[', posmem);
+  size_t bodyBegin = bodyBeginF;
+  char bodyBeginSym = '{';
+  char bodyEndSym = '}';
+  if (bodyBeginQ < bodyBeginF) {
+    bodyBegin = bodyBeginQ;
+    bodyBeginSym = '[';
+    bodyEndSym = ']';
+  }
+  if ((!oprName.empty() && (bodyBegin < cpos)) ||
+      (oprName.empty() && (bodyBegin != std::string::npos))) {
+    const std::string vName = script.substr(posmem, bodyBegin - posmem);
+    std::string value = getIntroScript(script, bodyBegin, bodyBeginSym, bodyEndSym);
+    if (!value.empty()) {
+      if (value.front() == '"') {
+        value.erase(value.begin());
+      }
+      if (!value.empty() && value.back() == '"') {
+        value.pop_back();
+      }
+    }
+    if (entityKw == Keyword::VARIABLE) {
+      emplaceExpr(iExpr, Keyword::VARIABLE, Interpreter::makeParam(vName), Interpreter::valueFromLiteral(value));
+    }
+    else {
+      emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(vName), std::string{value});
+    }
+    if (oprName == "[" && bodyBeginSym == '[') {
+      emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(oprName));
+      emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(vName), std::string{value});
+    }
+    if (bindVariable) {
+      m_var[vName] = Interpreter::valueFromLiteral(value);
+    }
+    cpos = bodyBegin;
+    return ParseInitOutcome::Handled;
+  }
+  if (!oprName.empty()) {
+    const std::string vName = script.substr(posmem, cpos - posmem - oprName.size());
+    if (bindVariable && m_var.find(vName) == m_var.end()) {
+      m_var.insert({vName, std::string{}});
+    }
+    emplaceExpr(iExpr, entityKw, Interpreter::makeParam(vName));
+    emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(oprName));
+    return ParseInitOutcome::Handled;
+  }
+  std::string vName = script.substr(cpos);
+  if (!vName.empty() && vName.back() == ';') {
+    vName.pop_back();
+  }
+  if (bindVariable && m_var.find(vName) == m_var.end()) {
+    m_var.insert({vName, std::string{}});
+  }
+  emplaceExprAt(iExpr, entityKw, Interpreter::makeParam(vName));
+  return ParseInitOutcome::BreakLoop;
 }
 
 bool Interpreter::Impl::parseExprPrimary(std::string& script, size_t& cpos, size_t& iExpr,
@@ -1274,6 +1296,7 @@ bool Interpreter::Impl::parseExprPrimary(std::string& script, size_t& cpos, size
       failParse(cpos, gpos, "invalid macro arguments");
       return false;
     }
+    cleaningScript(macro);
 
     if (cposArg == cposMName) {
       script.replace(cpos, mname.size(), macro);
@@ -1286,7 +1309,7 @@ bool Interpreter::Impl::parseExprPrimary(std::string& script, size_t& cpos, size
   if (script[cpos] == '"') {
     ++cpos;
     const std::string vName = getNextParam(script, cpos, '"');
-    emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(vName));
+    emplaceExpr(iExpr, Keyword::VALUE, {}, ir::detail::parseQuotedLiteral(vName));
     return true;
   }
   if (script[cpos] == '{') {
@@ -1303,8 +1326,19 @@ bool Interpreter::Impl::parseExprPrimary(std::string& script, size_t& cpos, size
       }
       ++end;
     }
-    emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(script.substr(cpos, end - cpos)));
+    emplaceExpr(iExpr, Keyword::VALUE, {},
+      ir::detail::parseLiteralText(script.substr(cpos, end - cpos)));
     cpos = end;
+    return true;
+  }
+  if (ir::detail::matchKeywordAt(script, cpos, "true")) {
+    emplaceExpr(iExpr, Keyword::VALUE, {}, bool{true});
+    cpos += 4;
+    return true;
+  }
+  if (ir::detail::matchKeywordAt(script, cpos, "false")) {
+    emplaceExpr(iExpr, Keyword::VALUE, {}, bool{false});
+    cpos += 5;
     return true;
   }
   if (isUnaryMinusAt(script, cpos)) {
@@ -1348,7 +1382,8 @@ bool Interpreter::Impl::parseExprUnary(std::string& script, size_t& cpos, size_t
       }
       ++end;
     }
-    emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(script.substr(minusPos, end - minusPos)));
+    emplaceExpr(iExpr, Keyword::VALUE, {},
+      ir::detail::parseLiteralText(script.substr(minusPos, end - minusPos)));
     cpos = end;
     return true;
   }
@@ -1663,7 +1698,7 @@ Interpreter::Value Interpreter::Impl::evalOperand(size_t iExpr) {
   case Keyword::VARIABLE:
     return variableByKey(ir::detail::paramKey(exp.params));
   case Keyword::VALUE:
-    return Interpreter::valueFromParams(exp.params, exp.result);
+    return ir::detail::valueOfValueExpr(exp.result, exp.params);
   default:
     return calcOperation(exp.keyw, iExpr);
   }
@@ -1677,6 +1712,7 @@ Interpreter::Impl::Keyword Interpreter::Impl::keywordByName(std::string_view opr
   if (oprName == "goto") return Keyword::GOTO;
   if (oprName == "#macro") return Keyword::MACRO;
   if (oprName == "continue") return Keyword::CONTINUE;
+  if (oprName == "true" || oprName == "false") return Keyword::VALUE;
   return Keyword::INSTRUCTION;
 }
 Interpreter::EntityType Interpreter::Impl::keywordToEntityType(Keyword keyw) const {
@@ -1785,6 +1821,146 @@ Interpreter::UserOperator Interpreter::getUserOperator(const std::string& oname)
   return m_d ? m_d->getUserOperator(oname) : nullptr;
 }
 
+// --- ir::detail (definitions) ---
+
+namespace ir {
+namespace detail {
+
+bool isDigits(std::string_view s) {
+  if (s.empty()) {
+    return false;
+  }
+  for (unsigned char c : s) {
+    if (!std::isdigit(c)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::optional<int64_t> parseInteger(std::string_view s) {
+  if (!isDigits(s)) {
+    return std::nullopt;
+  }
+  int64_t v = 0;
+  for (char c : s) {
+    v = v * 10 + (c - '0');
+  }
+  return v;
+}
+
+std::optional<Interpreter::Value> parseNumber(std::string_view s) {
+  if (s.empty()) {
+    return std::nullopt;
+  }
+  size_t i = 0;
+  bool neg = false;
+  if (s[0] == '-') {
+    neg = true;
+    i = 1;
+  }
+  if (i >= s.size()) {
+    return std::nullopt;
+  }
+  const size_t dot = s.find('.', i);
+  if (dot != std::string_view::npos) {
+    const auto intPart = parseInteger(s.substr(i, dot - i));
+    const auto fracPart = parseInteger(s.substr(dot + 1));
+    if (!intPart || !fracPart) {
+      return std::nullopt;
+    }
+    double whole = static_cast<double>(*intPart);
+    double frac = static_cast<double>(*fracPart);
+    size_t fracLen = s.size() - dot - 1;
+    for (size_t p = 0; p < fracLen; ++p) {
+      frac /= 10.0;
+    }
+    double v = whole + frac;
+    return neg ? Interpreter::Value{-v} : Interpreter::Value{v};
+  }
+  if (auto n = parseInteger(s.substr(i))) {
+    return neg ? Interpreter::Value{-*n} : Interpreter::Value{*n};
+  }
+  return std::nullopt;
+}
+
+bool isIdentContinue(unsigned char c) {
+  return std::isalnum(c) || c == '_';
+}
+
+bool matchKeywordAt(std::string_view script, size_t cpos, std::string_view kw) {
+  if (cpos + kw.size() > script.size()) {
+    return false;
+  }
+  if (script.substr(cpos, kw.size()) != kw) {
+    return false;
+  }
+  if (cpos + kw.size() < script.size() &&
+      isIdentContinue(static_cast<unsigned char>(script[cpos + kw.size()]))) {
+    return false;
+  }
+  return true;
+}
+
+Interpreter::Value parseLiteralText(std::string_view s) {
+  return Interpreter::valueFromLiteral(s);
+}
+
+Interpreter::Value parseQuotedLiteral(std::string s) {
+  return s;
+}
+
+Interpreter::Value valueOfValueExpr(const Interpreter::Value& result,
+    const std::vector<Interpreter::Value>& params) {
+  if (!params.empty()) {
+    if (const auto* name = std::get_if<std::string>(&params[0])) {
+      if (!name->empty()) {
+        return *name;
+      }
+    }
+  }
+  return result;
+}
+
+const std::string& paramKey(const std::vector<Interpreter::Value>& params) {
+  static const std::string kEmpty;
+  if (params.empty()) {
+    return kEmpty;
+  }
+  if (const auto* s = std::get_if<std::string>(&params[0])) {
+    return *s;
+  }
+  return kEmpty;
+}
+
+size_t paramIndex(const std::vector<Interpreter::Value>& params) {
+  if (params.empty()) {
+    return kNoIndex;
+  }
+  if (const auto* i = std::get_if<int64_t>(&params[0])) {
+    return static_cast<size_t>(*i);
+  }
+  if (const auto* s = std::get_if<std::string>(&params[0])) {
+    if (auto n = parseInteger(*s)) {
+      return static_cast<size_t>(*n);
+    }
+  }
+  return kNoIndex;
+}
+
+bool isBreakValue(const Interpreter::Value& v) {
+  const auto* cf = std::get_if<Interpreter::ControlFlow>(&v);
+  return cf && *cf == Interpreter::ControlFlow::Break;
+}
+
+bool isContinueValue(const Interpreter::Value& v) {
+  const auto* cf = std::get_if<Interpreter::ControlFlow>(&v);
+  return cf && *cf == Interpreter::ControlFlow::Continue;
+}
+
+} // namespace detail
+} // namespace ir
+
 // --- value helpers ---
 
 std::string Interpreter::valueToString(const Interpreter::Value& v) {
@@ -1820,6 +1996,12 @@ std::string Interpreter::valueToString(const Interpreter::Value& v) {
 Interpreter::Value Interpreter::valueFromLiteral(std::string_view s) {
   if (s.empty()) {
     return std::string{};
+  }
+  if (s == "true") {
+    return true;
+  }
+  if (s == "false") {
+    return false;
   }
   if (auto n = ir::detail::parseNumber(s)) {
     return *n;
@@ -1878,24 +2060,12 @@ bool Interpreter::valueIsInteger(const Interpreter::Value& v) {
 }
 
 bool Interpreter::valueIsNumeric(const Interpreter::Value& v) {
-  if (std::holds_alternative<int64_t>(v) || std::holds_alternative<double>(v)) {
-    return true;
-  }
-  if (const auto* s = std::get_if<std::string>(&v)) {
-    return ir::detail::isDigits(*s);
-  }
-  return false;
+  return std::holds_alternative<int64_t>(v) || std::holds_alternative<double>(v);
 }
 
 int64_t Interpreter::valueAsInt64(const Interpreter::Value& v) {
   if (const auto* i = std::get_if<int64_t>(&v)) {
     return *i;
-  }
-  if (const auto* s = std::get_if<std::string>(&v)) {
-    if (auto n = ir::detail::parseInteger(*s)) {
-      return *n;
-    }
-    return 0;
   }
   if (const auto* b = std::get_if<bool>(&v)) {
     return *b ? 1 : 0;
@@ -1928,9 +2098,6 @@ Interpreter::Value Interpreter::valueFromParams(const std::vector<Interpreter::V
   }
   if (const auto* i = std::get_if<int64_t>(&params[0])) {
     return *i;
-  }
-  if (const auto* s = std::get_if<std::string>(&params[0])) {
-    return s->empty() ? fallback : Interpreter::valueFromLiteral(*s);
   }
   return fallback;
 }
@@ -1965,20 +2132,6 @@ std::optional<double> valueAsDouble(const Interpreter::Value& v) {
   }
   if (const auto* d = std::get_if<double>(&v)) {
     return *d;
-  }
-  if (const auto* s = std::get_if<std::string>(&v)) {
-    if (!Interpreter::valueIsNumeric(v)) {
-      return std::nullopt;
-    }
-    try {
-      size_t pos = 0;
-      const double x = std::stod(*s, &pos);
-      if (pos == s->size()) {
-        return x;
-      }
-    }
-    catch (const std::exception&) {
-    }
   }
   return std::nullopt;
 }

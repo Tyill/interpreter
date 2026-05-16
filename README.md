@@ -287,6 +287,9 @@ int main(int argc, char* argv[])
 
 ### [Tests](https://github.com/Tyill/interpreter/blob/main/src/test.cpp)
 
+### Documentation
+
+Extended guides (English): **[docs/README.md](docs/README.md)**
 
 ### License
 Licensed under an [MIT-2.0]-[license](LICENSE).
