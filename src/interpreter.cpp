@@ -25,32 +25,141 @@
 #include "../include/interpreter.h"
 
 #include <sstream>
+#include <iomanip>
 #include <algorithm>
 #include <cctype>
+#include <memory>
+#include <optional>
 #include <set>
+#include <string_view>
+#include <type_traits>
+#include <utility>
 
-using namespace std;
+// --- value detail (ir) ---
+
+namespace ir {
+namespace detail {
+
+constexpr size_t kNoIndex = static_cast<size_t>(-1);
+
+inline bool isDigits(std::string_view s) {
+  if (s.empty()) {
+    return false;
+  }
+  for (unsigned char c : s) {
+    if (!std::isdigit(c)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+inline std::optional<int64_t> parseInteger(std::string_view s) {
+  if (!isDigits(s)) {
+    return std::nullopt;
+  }
+  int64_t v = 0;
+  for (char c : s) {
+    v = v * 10 + (c - '0');
+  }
+  return v;
+}
+
+inline std::optional<Interpreter::Value> parseNumber(std::string_view s) {
+  if (s.empty()) {
+    return std::nullopt;
+  }
+  size_t i = 0;
+  bool neg = false;
+  if (s[0] == '-') {
+    neg = true;
+    i = 1;
+  }
+  if (i >= s.size()) {
+    return std::nullopt;
+  }
+  const size_t dot = s.find('.', i);
+  if (dot != std::string_view::npos) {
+    const auto intPart = parseInteger(s.substr(i, dot - i));
+    const auto fracPart = parseInteger(s.substr(dot + 1));
+    if (!intPart || !fracPart) {
+      return std::nullopt;
+    }
+    double whole = static_cast<double>(*intPart);
+    double frac = static_cast<double>(*fracPart);
+    size_t fracLen = s.size() - dot - 1;
+    for (size_t p = 0; p < fracLen; ++p) {
+      frac /= 10.0;
+    }
+    double v = whole + frac;
+    return neg ? Interpreter::Value{-v} : Interpreter::Value{v};
+  }
+  if (auto n = parseInteger(s.substr(i))) {
+    return neg ? Interpreter::Value{-*n} : Interpreter::Value{*n};
+  }
+  return std::nullopt;
+}
+
+inline const std::string& paramKey(const std::vector<Interpreter::Value>& params) {
+  static const std::string kEmpty;
+  if (params.empty()) {
+    return kEmpty;
+  }
+  if (const auto* s = std::get_if<std::string>(&params[0])) {
+    return *s;
+  }
+  return kEmpty;
+}
+
+inline size_t paramIndex(const std::vector<Interpreter::Value>& params) {
+  if (params.empty()) {
+    return kNoIndex;
+  }
+  if (const auto* i = std::get_if<int64_t>(&params[0])) {
+    return static_cast<size_t>(*i);
+  }
+  if (const auto* s = std::get_if<std::string>(&params[0])) {
+    if (auto n = parseInteger(*s)) {
+      return static_cast<size_t>(*n);
+    }
+  }
+  return kNoIndex;
+}
+
+inline bool isBreakValue(const Interpreter::Value& v) {
+  const auto* cf = std::get_if<Interpreter::ControlFlow>(&v);
+  return cf && *cf == Interpreter::ControlFlow::Break;
+}
+
+inline bool isContinueValue(const Interpreter::Value& v) {
+  const auto* cf = std::get_if<Interpreter::ControlFlow>(&v);
+  return cf && *cf == Interpreter::ControlFlow::Continue;
+}
+
+} // namespace detail
+} // namespace ir
 
 class Interpreter::Impl {
 public:
   Impl() = default;
-  bool addFunction(const string& name, Interpreter::UserFunction ufunc);
-  bool addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority);
-  bool addAttribute(const string& name);
-  string cmd(string script);
-  bool parseScript(string script, string& outErr);
-  string runScript();
-  std::map<std::string, std::string> allVariables() const;
-  std::string variable(const std::string& vname) const;
-  std::string runFunction(const std::string& fname, const std::vector<std::string>& args);
-  bool setVariable(const std::string& vname, const std::string& value);
+  bool addFunction(const std::string& name, Interpreter::UserFunction ufunc);
+  bool addOperator(const std::string& name, Interpreter::UserOperator uopr, uint32_t priority);
+  bool addAttribute(const std::string& name);
+  Interpreter::CmdResult cmd(std::string script);
+  bool parseScript(std::string script, Interpreter::Error& outErr);
+  Interpreter::Value evalScript();
+  std::pair<Interpreter::Value, Interpreter::Error> runScript();
+  std::map<std::string, Interpreter::Value> allVariables() const;
+  Interpreter::Value variable(const std::string& vname) const;
+  Interpreter::Value runFunction(const std::string& fname, const std::vector<Interpreter::Value>& args);
+  bool setVariable(const std::string& vname, const Interpreter::Value& value);
   bool setMacro(const std::string& mname, const std::string& script);
   bool gotoOnLabel(const std::string& lname);
   void exitFromScript();
-  std::vector<Interpreter::Entity> allEntities();
-  Interpreter::Entity currentEntity();
-  Interpreter::Entity getEntityByIndex(size_t beginIndex);
-  vector<string> getAttributeByIndex(size_t beginIndex);
+  std::vector<Interpreter::Entity> allEntities() const;
+  Interpreter::Entity currentEntity() const;
+  Interpreter::Entity getEntityByIndex(size_t beginIndex) const;
+  std::vector<std::string> getAttributeByIndex(size_t beginIndex) const;
   bool gotoOnEntity(size_t iBegin);
   Interpreter::UserFunction getUserFunction(const std::string& fname);
   Interpreter::UserOperator getUserOperator(const std::string& oname);
@@ -77,248 +186,398 @@ private:
     size_t iConditionEnd;
     size_t iBodyEnd;
     size_t iOperator;
-    string params;
-    string result;
+    std::vector<Interpreter::Value> params;
+    Interpreter::Value result{std::string{}};
   };
-  struct Operatr {
+  struct Operator {
     size_t inx, priority, iLOpr, iROpr;
   };
-  map<string, Interpreter::UserFunction> m_ufunc;
-  map<string, pair<Interpreter::UserOperator, uint32_t>> m_uoper; // operator, priority
-  map<string, string> m_var;
-  map<string, string> m_macro;
-  map<string, size_t> m_label;
-  set<string> m_attribute;
-  map<size_t, vector<string>> m_exprAttribute;
-  map<size_t, vector<Operatr>> m_soper;
-  map<string, Impl> m_internFunc;
-  vector<Expression> m_expr;
-  string m_err, m_prevScript;
-  size_t m_gotoIndex = size_t(-1);
+  std::map<std::string, Interpreter::UserFunction> m_ufunc;
+  std::map<std::string, std::pair<Interpreter::UserOperator, uint32_t>> m_uoper;
+  std::map<std::string, Interpreter::Value> m_var;
+  std::map<std::string, std::string> m_macro;
+  std::map<std::string, size_t> m_label;
+  std::set<std::string> m_attribute;
+  std::map<size_t, std::vector<std::string>> m_exprAttribute;
+  std::map<size_t, std::vector<Operator>> m_soper;
+  std::map<std::string, Impl> m_internFunc;
+  std::vector<Expression> m_expr;
+  Interpreter::Error m_parseErr;
+  std::string m_prevScript;
+  size_t m_gotoIndex = ir::detail::kNoIndex;
   size_t m_currentIndex = 0;
   bool m_exit = false;
 
-  string calcOperation(Keyword mainKeyword, size_t iExpr);
-  string calcFunction(size_t iExpr);
-  string calcCondition(size_t iExpr);
-  string calcExpression(size_t iBegin, size_t iEnd);
-  void calcOperatorPriority(size_t iBegin, size_t iEnd, vector<Operatr>& oprs);
+  Interpreter::Value calcOperation(Keyword mainKeyword, size_t iExpr);
+  Interpreter::Value calcFunction(size_t iExpr);
+  Interpreter::Value calcCondition(size_t iExpr);
+  Interpreter::Value calcExpression(size_t iBegin, size_t iEnd);
+  void calcOperatorPriority(size_t iBegin, size_t iEnd, std::vector<Operator>& oprs);
 
-  bool parseInstructionScript(string& script, size_t gpos);
-  bool parseExpressionScript(string& script, size_t gpos);
-  bool parseArgumentScript(string& script, size_t gpos);
-  bool parseMacroArgs(const string& args, string& macro);
+  bool parseInstructionScript(std::string& script, size_t gpos);
+  bool parseExpressionScript(std::string& script, size_t gpos);
+  bool parseArgumentScript(std::string& script, size_t gpos);
+  bool parseExprPrimary(std::string& script, size_t& cpos, size_t& iExpr, size_t gpos, bool& breakLoop);
+  bool parseExprUnary(std::string& script, size_t& cpos, size_t& iExpr, size_t gpos);
+  bool parseExprOperator(std::string& script, size_t& cpos, size_t& iExpr, size_t gpos);
+  bool skipOneSpareSymbol(const std::string& script, size_t& cpos);
+  bool parseControlBody(std::string& script, size_t& cpos, size_t gpos,
+    const char* emptyBodyMsg, const char* invalidBodyMsg);
+  bool parseInstrExprOrOpCall(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr);
+  bool parseInstrControlFlow(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr, size_t& iIF);
+  bool parseInstrElse(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr, size_t iIF);
+  bool parseInstrMacro(std::string& script, size_t& cpos, size_t gpos);
+  bool parseInstrGotoLabel(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr);
+  bool parseInstrFunctionDecl(std::string& script, size_t& cpos, size_t gpos);
+  bool parseInstrStatementExpr(std::string& script, size_t& cpos, size_t gpos, size_t& iExpr);
+  void emplaceSyntheticNegatePrefix(size_t& iExpr);
+  void mergeInternFuncs(Impl& callee) const;
+  void bindCallerScope(Impl& callee, const std::vector<Interpreter::Value>& args,
+    std::set<std::string>& outScopeVars) const;
+  void writeBackScope(Impl& callee, const std::set<std::string>& scopeVars);
+  bool parseMacroArgs(const std::string& args, std::string& macro);
 
-  void cleaningScript(string& script) const;
-  bool checkScript(const string& script, string& err) const;
+  void emplaceExpr(size_t& iExpr, Keyword keyw,
+    std::vector<Interpreter::Value> params = {},
+    Interpreter::Value result = std::string{});
+  void emplaceExprAt(size_t iExpr, Keyword keyw,
+    std::vector<Interpreter::Value> params = {},
+    Interpreter::Value result = std::string{});
+  enum class ParseInitOutcome { NotHandled, Handled, BreakLoop };
+  ParseInitOutcome parseNamedInitBody(Keyword entityKw, bool bindVariable,
+    std::string& script, size_t& cpos, size_t& iExpr,
+    size_t posmem, const std::string& oprName);
+  Interpreter::Entity makeEntity(size_t index, const Expression& exp) const;
+  Impl makeChildImplForParse() const;
+  bool failParse(size_t cpos, size_t gpos, const char* what);
+  static bool failCheck(std::string& err, const char* what);
 
-  bool startWith(const string& str, size_t pos, const string& begin) const;
-  bool isNumber(const string& s) const;
-  bool isFindKeySymbol(const string& script, size_t cpos, size_t maxpos) const;
-  Keyword keywordByName(const string& oprName) const;
+  void cleaningScript(std::string& script) const;
+  bool checkScript(const std::string& script, std::string& err) const;
+
+  bool startWith(std::string_view str, size_t pos, std::string_view begin) const;
+  bool isFindKeySymbol(const std::string& script, size_t cpos, size_t maxpos) const;
+  Interpreter::Value evalOperand(size_t iExpr);
+  Interpreter::Value variableByKey(const std::string& key) const;
+  Keyword keywordByName(std::string_view oprName) const;
   Interpreter::EntityType keywordToEntityType(Keyword keyw) const;
-  string getNextParam(const string& script, size_t& cpos, char symb) const;
-  string getOperatorAtFirst(const string& script, size_t& cpos) const;
-  string getFunctionAtFirst(const string& script, size_t& cpos) const;
-  string getMacroAtFirst(const string& script, size_t& cpos) const;
-  string getAttributeAtFirst(const string& script, size_t& cpos) const;
-  string getNextOperator(const string& script, size_t& cpos) const;
-  string getIntroScript(const string& script, size_t& cpos, char symbBegin, char symbEnd) const;
+  std::string getNextParam(const std::string& script, size_t& cpos, char symb) const;
+  std::string getOperatorAtFirst(const std::string& script, size_t& cpos) const;
+  std::string getFunctionAtFirst(const std::string& script, size_t& cpos) const;
+  std::string peekFunctionCall(const std::string& script, size_t cpos) const;
+  std::string getMacroAtFirst(const std::string& script, size_t& cpos) const;
+  std::string getAttributeAtFirst(const std::string& script, size_t& cpos) const;
+  std::string getNextOperator(const std::string& script, size_t& cpos) const;
+  std::string getIntroScript(const std::string& script, size_t& cpos, char symbBegin, char symbEnd) const;
+  bool isUnaryMinusAt(const std::string& script, size_t cpos) const;
+  bool isUnaryMinusContext(const std::string& script, size_t cpos) const;
 };
 
-string Interpreter::Impl::cmd(string script) {
-    
-  string err;
-  if (!parseScript(move(script), err))
-    return err;
-
-  return runScript();
+void Interpreter::Impl::emplaceExpr(size_t& iExpr, Keyword keyw,
+    std::vector<Interpreter::Value> params, Interpreter::Value result) {
+  m_expr.emplace_back(Expression{keyw, iExpr, iExpr, ir::detail::kNoIndex,
+    std::move(params), std::move(result)});
+  ++iExpr;
 }
 
-bool Interpreter::Impl::parseScript(string script, string& err) {
+void Interpreter::Impl::emplaceExprAt(size_t iExpr, Keyword keyw,
+    std::vector<Interpreter::Value> params, Interpreter::Value result) {
+  m_expr.emplace_back(Expression{keyw, iExpr, iExpr, ir::detail::kNoIndex,
+    std::move(params), std::move(result)});
+}
+
+Interpreter::Entity Interpreter::Impl::makeEntity(size_t index, const Expression& exp) const {
+  Interpreter::Entity entity{
+    index, exp.iConditionEnd, exp.iBodyEnd,
+    keywordToEntityType(exp.keyw), ir::detail::paramKey(exp.params), exp.result
+  };
+  if (exp.keyw == Keyword::ELSE || exp.keyw == Keyword::ELSE_IF) {
+    entity.linkIndex = ir::detail::paramIndex(exp.params);
+  }
+  return entity;
+}
+
+Interpreter::Impl Interpreter::Impl::makeChildImplForParse() const {
+  Impl child;
+  child.m_ufunc = m_ufunc;
+  child.m_uoper = m_uoper;
+  child.m_macro = m_macro;
+  child.m_attribute = m_attribute;
+  child.m_internFunc = m_internFunc;
+  return child;
+}
+
+bool Interpreter::Impl::failParse(size_t cpos, size_t gpos, const char* what) {
+  if (m_parseErr.message.empty()) {
+    m_parseErr.kind = Interpreter::Error::Kind::Parse;
+    m_parseErr.position = cpos + gpos;
+    m_parseErr.message = "Error script pos " + std::to_string(m_parseErr.position) + ": " + what;
+  }
+  return false;
+}
+
+bool Interpreter::Impl::failCheck(std::string& err, const char* what) { // NOLINT(readability-make-member-function-const)
+  if (err.empty()) {
+    err = std::string("Error check script: ") + what;
+  }
+  return false;
+}
+
+Interpreter::Impl::ParseInitOutcome Interpreter::Impl::parseNamedInitBody(
+    Keyword entityKw, bool bindVariable,
+    std::string& script, size_t& cpos, size_t& iExpr,
+    size_t posmem, const std::string& oprName) {
+  const size_t bodyBeginF = script.find('{', posmem);
+  const size_t bodyBeginQ = script.find('[', posmem);
+  size_t bodyBegin = bodyBeginF;
+  char bodyBeginSym = '{';
+  char bodyEndSym = '}';
+  if (bodyBeginQ < bodyBeginF) {
+    bodyBegin = bodyBeginQ;
+    bodyBeginSym = '[';
+    bodyEndSym = ']';
+  }
+  if ((!oprName.empty() && (bodyBegin < cpos)) ||
+      (oprName.empty() && (bodyBegin != std::string::npos))) {
+    const std::string vName = script.substr(posmem, bodyBegin - posmem);
+    std::string value = getIntroScript(script, bodyBegin, bodyBeginSym, bodyEndSym);
+    if (!value.empty()) {
+      if (value.front() == '"') {
+        value.erase(value.begin());
+      }
+      if (!value.empty() && value.back() == '"') {
+        value.pop_back();
+      }
+    }
+    if (entityKw == Keyword::VARIABLE) {
+      emplaceExpr(iExpr, Keyword::VARIABLE, Interpreter::makeParam(vName), Interpreter::valueFromLiteral(value));
+    }
+    else {
+      emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(vName), std::string{value});
+    }
+    if (oprName == "[" && bodyBeginSym == '[') {
+      emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(oprName));
+      emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(vName), std::string{value});
+    }
+    if (bindVariable) {
+      m_var[vName] = Interpreter::valueFromLiteral(value);
+    }
+    cpos = bodyBegin;
+    return ParseInitOutcome::Handled;
+  }
+  if (!oprName.empty()) {
+    const std::string vName = script.substr(posmem, cpos - posmem - oprName.size());
+    if (bindVariable && m_var.find(vName) == m_var.end()) {
+      m_var.insert({vName, std::string{}});
+    }
+    emplaceExpr(iExpr, entityKw, Interpreter::makeParam(vName));
+    emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(oprName));
+    return ParseInitOutcome::Handled;
+  }
+  std::string vName = script.substr(cpos);
+  if (!vName.empty() && vName.back() == ';') {
+    vName.pop_back();
+  }
+  if (bindVariable && m_var.find(vName) == m_var.end()) {
+    m_var.insert({vName, std::string{}});
+  }
+  emplaceExprAt(iExpr, entityKw, Interpreter::makeParam(vName));
+  return ParseInitOutcome::BreakLoop;
+}
+
+// --- eval ---
+
+Interpreter::CmdResult Interpreter::Impl::cmd(std::string script) {
+  Interpreter::Error err;
+  if (!parseScript(std::move(script), err)) {
+    return {Interpreter::Value{std::string{}}, std::move(err)};
+  }
+  auto run = runScript();
+  return {std::move(run.first), std::move(run.second)};
+}
+
+bool Interpreter::Impl::parseScript(std::string script, Interpreter::Error& outErr) {
+  outErr = {};
+  m_parseErr = {};
 
   cleaningScript(script);
 
   if (script.empty()) {
-    err = "Error: empty script";
+    outErr.kind = Interpreter::Error::Kind::Parse;
+    outErr.message = "Error: empty script";
     return false;
   }
 
-  if (script.back() != ';') script += ';';
+  if (script.back() != ';') {
+    script += ';';
+  }
 
   if (m_prevScript != script) {
     m_prevScript = script;
     m_expr.clear();
     m_label.clear();
     m_soper.clear();
-    m_err.clear();
-    if (!checkScript(script, m_err) || !parseInstructionScript(script, 0)) {
+    m_parseErr = {};
+    std::string checkErr;
+    if (!checkScript(script, checkErr) || !parseInstructionScript(script, 0)) {
       m_prevScript.clear();
-      err = m_err;
+      if (!m_parseErr.message.empty()) {
+        outErr = m_parseErr;
+      }
+      else {
+        outErr.kind = Interpreter::Error::Kind::Parse;
+        outErr.message = checkErr;
+      }
       return false;
     }
   }
   return true;
 }
 
-string Interpreter::Impl::runScript() {
+std::pair<Interpreter::Value, Interpreter::Error> Interpreter::Impl::runScript() {
+  return {evalScript(), {}};
+}
+
+Interpreter::Value Interpreter::Impl::evalScript() {
 
   for (auto& ex : m_expr)
-    ex.iOperator = size_t(-1);
+    ex.iOperator = ir::detail::kNoIndex;
 
-  string result;
+  Interpreter::Value result;
   m_exit = false;
   for (size_t i = 0; i < m_expr.size();) {
 
     result = calcOperation(m_expr[i].keyw, i);
-    i = max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
+    i = std::max(m_expr[i].iConditionEnd, m_expr[i].iBodyEnd);
 
-    if (m_gotoIndex != size_t(-1)) {
+    if (m_gotoIndex != ir::detail::kNoIndex) {
       for (size_t j = m_gotoIndex; j < i; ++j)
-        m_expr[j].iOperator = size_t(-1);
+        m_expr[j].iOperator = ir::detail::kNoIndex;
       i = m_gotoIndex;
-      m_gotoIndex = size_t(-1);
+      m_gotoIndex = ir::detail::kNoIndex;
     }
     if (m_exit) break;
   }
   return result;
 }
 
-void Interpreter::Impl::cleaningScript(string& script) const {
+void Interpreter::Impl::cleaningScript(std::string& script) const {
 
-  // del comments
-  size_t commp = script.find("//");
-  while (commp != string::npos) {
-    size_t endStr = script.find("\n", commp);
-    if (endStr != string::npos){
-      script.erase(commp, endStr - commp + 1);
-      commp = script.find("//", endStr);
-    }else{
-      script.erase(commp);
-      break;
+  std::string out;
+  out.reserve(script.size());
+  bool inString = false;
+  for (size_t i = 0; i < script.size();) {
+    if (!inString && i + 1 < script.size() && script[i] == '/' && script[i + 1] == '/') {
+      i += 2;
+      while (i < script.size() && script[i] != '\n') {
+        ++i;
+      }
+      continue;
     }
-  }
-
-  // save string "value"
-  vector<string> strVals;
-  size_t beginStr = script.find("\"");
-  while (beginStr != string::npos) {
-    size_t endStr = script.find("\"", beginStr + 1);
-    if (endStr != string::npos) {
-      strVals.emplace_back(script.substr(beginStr, endStr - beginStr + 1));
-      beginStr = script.find("\"", endStr + 1);
+    if (script[i] == '"') {
+      if (inString && i > 0 && script[i - 1] == '\\') {
+        out += script[i++];
+        continue;
+      }
+      inString = !inString;
+      out += script[i++];
+      continue;
     }
-    else break;
-  }
-
-  // cleaning
-  script.erase(remove(script.begin(), script.end(), '\n'), script.end());
-  script.erase(remove(script.begin(), script.end(), '\t'), script.end());
-  script.erase(remove(script.begin(), script.end(), '\v'), script.end());
-  script.erase(remove(script.begin(), script.end(), '\f'), script.end());
-  script.erase(remove(script.begin(), script.end(), '\r'), script.end());
-  script.erase(remove(script.begin(), script.end(), ' '), script.end());
-
-  // restore string "value"
-  beginStr = script.find("\"");
-  size_t iVal = 0;
-  while ((beginStr != string::npos) && (iVal < strVals.size())) {
-    size_t endStr = script.find("\"", beginStr + 1);
-    if (endStr != string::npos) {
-      script.replace(beginStr, endStr - beginStr + 1, strVals[iVal]);
-      beginStr = script.find("\"", beginStr + strVals[iVal].size() + 1);
-      ++iVal;
+    if (inString) {
+      out += script[i++];
+      continue;
     }
-    else break;
+    const char c = script[i];
+    if (c == ' ' || c == '\n' || c == '\t' || c == '\v' || c == '\f' || c == '\r') {
+      ++i;
+      continue;
+    }
+    out += c;
+    ++i;
   }
+  script = std::move(out);
 }
 
-bool Interpreter::Impl::checkScript(const string& script, string& err) const {
-
-#define CHECK_SCENAR_RETURN(condition)                                                \
-  if (condition){                                                       \
-    if (err.empty()) err = "Error check script: " + string(#condition); \
-    return false;                                                       \
-  }  
-
-  CHECK_SCENAR_RETURN(std::count(script.begin(), script.end(), '{') != std::count(script.begin(), script.end(), '}'));
-  CHECK_SCENAR_RETURN(std::count(script.begin(), script.end(), '(') != std::count(script.begin(), script.end(), ')'));
-  CHECK_SCENAR_RETURN(std::count(script.begin(), script.end(), '"') % 2 != 0);
-
-#undef CHECK_SCENAR_RETURN
-
+bool Interpreter::Impl::checkScript(const std::string& script, std::string& err) const {
+  if (std::count(script.begin(), script.end(), '{') != std::count(script.begin(), script.end(), '}')) {
+    return failCheck(err, "{ } mismatch");
+  }
+  if (std::count(script.begin(), script.end(), '(') != std::count(script.begin(), script.end(), ')')) {
+    return failCheck(err, "( ) mismatch");
+  }
+  if (std::count(script.begin(), script.end(), '"') % 2 != 0) {
+    return failCheck(err, "unclosed string");
+  }
   return true;
 }
 
-bool Interpreter::Impl::addFunction(const string& name, Interpreter::UserFunction ufunc) {
+bool Interpreter::Impl::addFunction(const std::string& name, Interpreter::UserFunction ufunc) {
   if (name.empty() || (keywordByName(name) != Keyword::INSTRUCTION) || isFindKeySymbol(name, 0, name.size())) return false;
-  m_ufunc[name] = move(ufunc);
+  m_ufunc[name] = std::move(ufunc);
   return true;
 }
-bool Interpreter::Impl::addOperator(const string& name, Interpreter::UserOperator uopr, uint32_t priority) {
+bool Interpreter::Impl::addOperator(const std::string& name, Interpreter::UserOperator uopr, uint32_t priority) {
   if (name.empty() || (keywordByName(name) != Keyword::INSTRUCTION) || isFindKeySymbol(name, 0, name.size())) return false;
-  m_uoper[name] = {move(uopr), priority};
+  m_uoper[name] = {std::move(uopr), priority};
   return true;
 }
-bool Interpreter::Impl::addAttribute(const string& name) {
+bool Interpreter::Impl::addAttribute(const std::string& name) {
   m_attribute.insert(name);
   return true;
 }
 
-std::map<std::string, std::string> Interpreter::Impl::allVariables() const {
+std::map<std::string, Interpreter::Value> Interpreter::Impl::allVariables() const {
   return m_var;
 }
-std::string Interpreter::Impl::variable(const std::string& vname) const {
-  return m_var.find(vname) != m_var.end() ? m_var.at(vname) : "";
+Interpreter::Value Interpreter::Impl::variable(const std::string& vname) const {
+  auto it = m_var.find(vname);
+  return it != m_var.end() ? it->second : Interpreter::Value{std::string{}};
 }
-bool Interpreter::Impl::setVariable(const std::string& vname, const std::string& value) {
+bool Interpreter::Impl::setVariable(const std::string& vname, const Interpreter::Value& value) {
   m_var[vname] = value;
   return true;
 }
-std::string Interpreter::Impl::runFunction(const std::string& fname, const std::vector<std::string>& args) {
-  return m_ufunc.count(fname) ? m_ufunc[fname](args) : "";
+Interpreter::Value Interpreter::Impl::runFunction(const std::string& fname, const std::vector<Interpreter::Value>& args) {
+  return m_ufunc.count(fname) ? m_ufunc[fname](args) : Interpreter::Value{std::string{}};
 }
 bool Interpreter::Impl::setMacro(const std::string& mname, const std::string& script) {
   m_macro[mname] = script;
   return true;
 }
 bool Interpreter::Impl::gotoOnLabel(const std::string& lname) {
-  bool exist = m_label.find(lname) != m_label.end();
-  if (exist)
-    m_gotoIndex = m_label[lname];
-  return exist;
+  const auto it = m_label.find(lname);
+  if (it == m_label.end()) {
+    return false;
+  }
+  m_gotoIndex = it->second;
+  return true;
 }
 void Interpreter::Impl::exitFromScript() {
   m_exit = true;
 }
-std::vector<Interpreter::Entity> Interpreter::Impl::allEntities() {
+std::vector<Interpreter::Entity> Interpreter::Impl::allEntities() const {
   std::vector<Interpreter::Entity> res;
-  for (size_t i = 0; i < m_expr.size(); ++i) {    
-    const auto& exp = m_expr[i];
-    res.emplace_back(Interpreter::Entity{
-      i, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
-    });
+  res.reserve(m_expr.size());
+  for (size_t i = 0; i < m_expr.size(); ++i) {
+    res.push_back(makeEntity(i, m_expr[i]));
   }
   return res;
 }
-Interpreter::Entity Interpreter::Impl::currentEntity() {
-  if (m_currentIndex >= m_expr.size())
+Interpreter::Entity Interpreter::Impl::currentEntity() const {
+  if (m_currentIndex >= m_expr.size()) {
     return Interpreter::Entity{0};
-  const auto& exp = m_expr[m_currentIndex];
-  return Interpreter::Entity{
-      m_currentIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
-  };
+  }
+  return makeEntity(m_currentIndex, m_expr[m_currentIndex]);
 }
-Interpreter::Entity Interpreter::Impl::getEntityByIndex(size_t beginIndex) {
-  if (beginIndex >= m_expr.size())
-    return Interpreter::Entity{ 0 };
-  const auto& exp = m_expr[beginIndex];
-  return Interpreter::Entity{
-      beginIndex, exp.iConditionEnd, exp.iBodyEnd, keywordToEntityType(exp.keyw), exp.params, exp.result
-  };
+Interpreter::Entity Interpreter::Impl::getEntityByIndex(size_t beginIndex) const {
+  if (beginIndex >= m_expr.size()) {
+    return Interpreter::Entity{0};
+  }
+  return makeEntity(beginIndex, m_expr[beginIndex]);
 }
-vector<string> Interpreter::Impl::getAttributeByIndex(size_t index) {
-  return m_exprAttribute.count(index) ? m_exprAttribute[index] : vector<string>();
+std::vector<std::string> Interpreter::Impl::getAttributeByIndex(size_t index) const {
+  const auto it = m_exprAttribute.find(index);
+  return it != m_exprAttribute.end() ? it->second : std::vector<std::string>{};
 }
 bool Interpreter::Impl::gotoOnEntity(size_t beginIndex) {
   if (beginIndex < m_expr.size()) {
@@ -334,15 +593,15 @@ Interpreter::UserOperator Interpreter::Impl::getUserOperator(const std::string& 
   return m_uoper.count(oname) ? m_uoper[oname].first : nullptr;
 }
 
-string Interpreter::Impl::calcOperation(Keyword mainKeyword, size_t iExpr) {
+Interpreter::Value Interpreter::Impl::calcOperation(Keyword mainKeyword, size_t iExpr) {
 
-  string g_result;
+  Interpreter::Value g_result;
   switch (mainKeyword) {
   case Keyword::VARIABLE:
-    g_result = m_var[m_expr[iExpr].params];
+    g_result = variableByKey(ir::detail::paramKey(m_expr[iExpr].params));
     break;
   case Keyword::VALUE:
-    g_result = m_expr[iExpr].params;
+    g_result = Interpreter::valueFromParams(m_expr[iExpr].params, m_expr[iExpr].result);
     break;
   case Keyword::EXPRESSION:
     g_result = m_expr[iExpr].result = calcExpression(iExpr + 1, m_expr[iExpr].iBodyEnd);
@@ -357,8 +616,11 @@ string Interpreter::Impl::calcOperation(Keyword mainKeyword, size_t iExpr) {
     g_result = calcCondition(iExpr);
     break;
   case Keyword::GOTO: {
-    if (m_label.find(m_expr[iExpr].params) != m_label.end())
-      m_gotoIndex = m_label[m_expr[iExpr].params];
+    const std::string& gotoLabel = ir::detail::paramKey(m_expr[iExpr].params);
+    auto it = m_label.find(gotoLabel);
+    if (it != m_label.end()) {
+      m_gotoIndex = it->second;
+    }
   }
     break;
   default:
@@ -366,18 +628,18 @@ string Interpreter::Impl::calcOperation(Keyword mainKeyword, size_t iExpr) {
   }
   return g_result;
 }
-string Interpreter::Impl::calcFunction(size_t iExpr) {
-    
-  string g_result;
+Interpreter::Value Interpreter::Impl::calcFunction(size_t iExpr) {
+
+  Interpreter::Value g_result;
   size_t iBegin = iExpr + 1;
   size_t iEnd = m_expr[iExpr].iConditionEnd;
-  vector<string> args;
+  std::vector<Interpreter::Value> args;
   for (size_t i = iBegin; i < iEnd;) {
     if ((i + 1 == m_expr[i].iBodyEnd - 1) && ((m_expr[i + 1].keyw == Keyword::VARIABLE) || (m_expr[i + 1].keyw == Keyword::VALUE))) {
       if (m_expr[i + 1].keyw == Keyword::VARIABLE)
-        m_expr[i].result = m_var[m_expr[i + 1].params];
+        m_expr[i].result = variableByKey(ir::detail::paramKey(m_expr[i + 1].params));
       else
-        m_expr[i].result = m_expr[i + 1].params;
+        m_expr[i].result = Interpreter::valueFromParams(m_expr[i + 1].params, m_expr[i + 1].result);
     }
     else {
       m_expr[i].result = calcExpression(i + 1, m_expr[i].iBodyEnd);
@@ -386,61 +648,40 @@ string Interpreter::Impl::calcFunction(size_t iExpr) {
     i = m_expr[i].iBodyEnd;
   }
   m_currentIndex = iExpr;
-  const string& fname = m_expr[iExpr].params;
+  const std::string& fname = ir::detail::paramKey(m_expr[iExpr].params);
   if (m_internFunc.count(fname)) {
-    auto& impl = m_internFunc[fname];    
-    for (const auto& f : m_internFunc) {
-      if (!impl.m_internFunc.count(f.first) || impl.m_internFunc[f.first].m_prevScript.empty()){
-        impl.m_internFunc[f.first] = f.second;
-      }
-    }
+    auto& impl = m_internFunc[fname];
+    mergeInternFuncs(impl);
     std::set<std::string> scopeVars;
-    for (const auto& var : m_var) {
-      if (impl.m_var.count(var.first)){
-        impl.m_var[var.first] = var.second;
-        scopeVars.insert(var.first);
-      }
-    }
-    for (size_t i = 0; i < args.size(); ++i) {
-      impl.m_var["$" + to_string(i)] = args[i];
-    }
-    
-    g_result = impl.runScript();
-    
-    for (const auto& var : impl.m_var) {
-      if (scopeVars.count(var.first)){
-        m_var[var.first] = var.second;
-      }
-    }
+    bindCallerScope(impl, args, scopeVars);
+    g_result = impl.evalScript();
+    writeBackScope(impl, scopeVars);
   }
   else {
     g_result = m_ufunc[fname](args);
   }
   return g_result;
 }
-string Interpreter::Impl::calcCondition(size_t iExpr) {
+Interpreter::Value Interpreter::Impl::calcCondition(size_t iExpr) {
 
-  string g_result;
+  Interpreter::Value g_result;
   size_t iBegin = iExpr + 1;
   size_t iCondEnd = m_expr[iExpr].iConditionEnd;
   size_t iBodyEnd = m_expr[iExpr].iBodyEnd;
   if ((m_expr[iExpr].keyw == Keyword::ELSE) || (m_expr[iExpr].keyw == Keyword::ELSE_IF)) {
-    size_t iIF = stoul(m_expr[iExpr].params);
-    if (iIF != size_t(-1)) {
-      string ifCondn = m_expr[iIF].result;
-      bool isNum = isNumber(ifCondn);
-      if ((isNum && (stoi(ifCondn) != 0)) || (!isNum && !ifCondn.empty())) {
-        return g_result;
-      }
+    const size_t iIF = ir::detail::paramIndex(m_expr[iExpr].params);
+    if (iIF == ir::detail::kNoIndex) {
+      return g_result;
     }
-    else return g_result;
+    if (Interpreter::valueIsTruthy(m_expr[iIF].result)) {
+      return g_result;
+    }
   }
-  string condn;
+  Interpreter::Value condn;
   if (iBegin < iCondEnd) {
     condn = m_expr[iExpr].result = calcExpression(iBegin, iCondEnd);
   }
-  bool isNum = isNumber(condn);
-  if ((m_expr[iExpr].keyw == Keyword::ELSE) || (isNum && (stoi(condn) != 0)) || (!isNum && !condn.empty())) {
+  if ((m_expr[iExpr].keyw == Keyword::ELSE) || Interpreter::valueIsTruthy(condn)) {
     bool isContinue = false,
       isBreak = false;
     for (size_t i = iCondEnd; i < iBodyEnd;) {
@@ -454,10 +695,10 @@ string Interpreter::Impl::calcCondition(size_t iExpr) {
       case Keyword::IF:
       case Keyword::ELSE:
       case Keyword::ELSE_IF: {
-        string res = calcCondition(i);
+        Interpreter::Value res = calcCondition(i);
         if (m_expr[i].keyw != Keyword::WHILE) {
-          isBreak = res == "break";
-          isContinue = res == "continue";
+          isBreak = ir::detail::isBreakValue(res);
+          isContinue = ir::detail::isContinueValue(res);
           g_result = res;
         }
         i = m_expr[i].iBodyEnd;
@@ -465,19 +706,23 @@ string Interpreter::Impl::calcCondition(size_t iExpr) {
         break;
       case Keyword::BREAK: {
         isBreak = true;
-        if (m_expr[iExpr].keyw != Keyword::WHILE)
-          g_result = "break";
+        if (m_expr[iExpr].keyw != Keyword::WHILE) {
+          g_result = Interpreter::ControlFlow::Break;
+        }
       }
         break;
       case Keyword::CONTINUE: {
         isContinue = true;
-        if (m_expr[iExpr].keyw != Keyword::WHILE)
-          g_result = "continue";
+        if (m_expr[iExpr].keyw != Keyword::WHILE) {
+          g_result = Interpreter::ControlFlow::Continue;
+        }
       }
         break;
       case Keyword::GOTO: {
-        if (m_label.find(m_expr[i].params) != m_label.end()) {
-          m_gotoIndex = m_label[m_expr[i].params];
+        const std::string& gotoLabel = ir::detail::paramKey(m_expr[i].params);
+        auto it = m_label.find(gotoLabel);
+        if (it != m_label.end()) {
+          m_gotoIndex = it->second;
         }
       }
         break;
@@ -486,12 +731,12 @@ string Interpreter::Impl::calcCondition(size_t iExpr) {
       }
       if (isBreak || m_exit) break;
 
-      if (m_gotoIndex != size_t(-1)) {
+      if (m_gotoIndex != ir::detail::kNoIndex) {
         if ((iCondEnd <= m_gotoIndex) && (m_gotoIndex < iBodyEnd)) {
           for (size_t j = m_gotoIndex; j < i; ++j)
-            m_expr[j].iOperator = size_t(-1);
+            m_expr[j].iOperator = ir::detail::kNoIndex;
           i = m_gotoIndex;
-          m_gotoIndex = size_t(-1);
+          m_gotoIndex = ir::detail::kNoIndex;
         }
         else break;
       }
@@ -502,13 +747,12 @@ string Interpreter::Impl::calcCondition(size_t iExpr) {
         isContinue = false;
 
         for (size_t j = iBegin; j < iCondEnd; ++j)
-          m_expr[j].iOperator = size_t(-1);
+          m_expr[j].iOperator = ir::detail::kNoIndex;
 
-        const string& condn = m_expr[iExpr].result = calcExpression(iBegin, iCondEnd);
-        bool isNum = isNumber(condn);
-        if ((isNum && (stoi(condn) != 0)) || (!isNum && !condn.empty())) {
+        condn = m_expr[iExpr].result = calcExpression(iBegin, iCondEnd);
+        if (Interpreter::valueIsTruthy(condn)) {
           for (size_t j = iCondEnd; j < iBodyEnd; ++j)
-            m_expr[j].iOperator = size_t(-1);
+            m_expr[j].iOperator = ir::detail::kNoIndex;
           i = iCondEnd;
         }
       }
@@ -516,72 +760,48 @@ string Interpreter::Impl::calcCondition(size_t iExpr) {
   }
   return g_result;
 }
-string Interpreter::Impl::calcExpression(size_t iBegin, size_t iEnd) {
+Interpreter::Value Interpreter::Impl::calcExpression(size_t iBegin, size_t iEnd) {
 
   if (iBegin + 1 == iEnd) {
-    if (m_expr[iBegin].keyw == Keyword::VARIABLE)
-      return m_var[m_expr[iBegin].params];
-    if (m_expr[iBegin].keyw == Keyword::VALUE)
-      return m_expr[iBegin].params;
-    return calcOperation(m_expr[iBegin].keyw, iBegin);
+    return evalOperand(iBegin);
   }
 
-  bool firstRun = m_soper.find(iBegin) == m_soper.end();
-  if (firstRun)
-    m_soper.insert({ iBegin, vector<Operatr>() });
-
-  vector<Operatr>& oprs = m_soper[iBegin];
-  if (firstRun) {
-    calcOperatorPriority(iBegin, iEnd, oprs);
+  if (m_soper.find(iBegin) == m_soper.end()) {
+    m_soper.insert({ iBegin, std::vector<Operator>() });
   }
+  std::vector<Operator>& oprs = m_soper[iBegin];
+  oprs.clear();
+  calcOperatorPriority(iBegin, iEnd, oprs);
 
   if (oprs.empty()) {
     return calcOperation(m_expr[iBegin].keyw, iBegin);
   }
 
-  string g_result;
+  Interpreter::Value g_result;
   for (auto& op : oprs) {
     size_t iOp = op.inx;
     Expression* pLeftOperd = nullptr,
       * pRightOperd = nullptr;
-    string lValue, rValue;
-    if (op.iLOpr != size_t(-1)) { // left operand
+    Interpreter::Value lValue, rValue;
+    if (op.iLOpr != ir::detail::kNoIndex) {
       pLeftOperd = &m_expr[op.iLOpr];
-      if (pLeftOperd->iOperator == size_t(-1)) {
-        if (pLeftOperd->keyw == Keyword::VARIABLE)
-          lValue = m_var[m_expr[op.iLOpr].params];
-        else if (pLeftOperd->keyw == Keyword::VALUE)
-          lValue = m_expr[op.iLOpr].params;
-        else
-          lValue = calcOperation(pLeftOperd->keyw, op.iLOpr);
-      }
-      else
-        lValue = m_expr[pLeftOperd->iOperator].result;
+      lValue = evalOperand(op.iLOpr);
     }
-    if (op.iROpr != size_t(-1)) { // right operand
+    if (op.iROpr != ir::detail::kNoIndex) {
       pRightOperd = &m_expr[op.iROpr];
-      if (pRightOperd->iOperator == size_t(-1)) {
-        if (pRightOperd->keyw == Keyword::VARIABLE)
-          rValue = m_var[m_expr[op.iROpr].params];
-        else if (pRightOperd->keyw == Keyword::VALUE)
-          rValue = m_expr[op.iROpr].params;
-        else
-          rValue = calcOperation(pRightOperd->keyw, op.iROpr);
-      }
-      else
-        rValue = m_expr[pRightOperd->iOperator].result;
+      rValue = evalOperand(op.iROpr);
     }
     m_currentIndex = iOp;
-    g_result = m_expr[iOp].result = m_uoper[m_expr[iOp].params].first(lValue, rValue);
+    g_result = m_expr[iOp].result = m_uoper[ir::detail::paramKey(m_expr[iOp].params)].first(lValue, rValue);
 
-    if (pLeftOperd && (pLeftOperd->keyw == Keyword::VARIABLE) && (pLeftOperd->iOperator == size_t(-1))) {
-      pLeftOperd->result = m_var[pLeftOperd->params] = lValue;
+    if (pLeftOperd && (pLeftOperd->keyw == Keyword::VARIABLE) && (pLeftOperd->iOperator == ir::detail::kNoIndex)) {
+      pLeftOperd->result = m_var[ir::detail::paramKey(pLeftOperd->params)] = lValue;
     }
-    if (pRightOperd && (pRightOperd->keyw == Keyword::VARIABLE) && (pRightOperd->iOperator == size_t(-1))) {
-      pRightOperd->result = m_var[pRightOperd->params] = rValue;
+    if (pRightOperd && (pRightOperd->keyw == Keyword::VARIABLE) && (pRightOperd->iOperator == ir::detail::kNoIndex)) {
+      pRightOperd->result = m_var[ir::detail::paramKey(pRightOperd->params)] = rValue;
     }
     if (pLeftOperd) {
-      if (pLeftOperd->iOperator != size_t(-1)) {
+      if (pLeftOperd->iOperator != ir::detail::kNoIndex) {
         size_t iLOp = pLeftOperd->iOperator;
         for (size_t i = iBegin; i < iEnd; ++i) {
           if (m_expr[i].iOperator == iLOp)
@@ -591,7 +811,7 @@ string Interpreter::Impl::calcExpression(size_t iBegin, size_t iEnd) {
       else pLeftOperd->iOperator = iOp;
     }
     if (pRightOperd) {
-      if (pRightOperd->iOperator != size_t(-1)) {
+      if (pRightOperd->iOperator != ir::detail::kNoIndex) {
         size_t iROp = pRightOperd->iOperator;
         for (size_t i = iBegin; i < iEnd; ++i) {
           if (m_expr[i].iOperator == iROp)
@@ -603,9 +823,9 @@ string Interpreter::Impl::calcExpression(size_t iBegin, size_t iEnd) {
   }
   return g_result;
 }
-void Interpreter::Impl::calcOperatorPriority(size_t iBegin, size_t iEnd, vector<Operatr>& oprs) {
+void Interpreter::Impl::calcOperatorPriority(size_t iBegin, size_t iEnd, std::vector<Operator>& oprs) {
 
-  size_t iLOpr = size_t(-1);
+  size_t iLOpr = ir::detail::kNoIndex;
   for (size_t i = iBegin; i < iEnd;) {
     if (m_expr[i].keyw == Keyword::FUNCTION) {
       iLOpr = i;
@@ -618,383 +838,598 @@ void Interpreter::Impl::calcOperatorPriority(size_t iBegin, size_t iEnd, vector<
       continue;
     }
     if (m_expr[i].keyw == Keyword::OPERATOR) {
-      uint32_t priority = m_uoper[m_expr[i].params].second;
-      size_t iROpr = (i < iEnd - 1) ? i + 1 : size_t(-1);
-      oprs.emplace_back<Operatr>({ i, priority, iLOpr, iROpr });  // inx, priority
+      uint32_t priority = m_uoper[ir::detail::paramKey(m_expr[i].params)].second;
+      size_t iROpr = (i < iEnd - 1) ? i + 1 : ir::detail::kNoIndex;
+      oprs.emplace_back<Operator>({ i, priority, iLOpr, iROpr });  // inx, priority
     }
     iLOpr = i;
     ++i;
   }
 
-  size_t osz = oprs.size();
-  if (osz > 1) {
-    if (osz == 2) {
-      if (oprs[0].priority > oprs[1].priority) swap(oprs[0], oprs[1]);
-    }
-    else if (osz == 3) {
-      if (oprs[0].priority < oprs[1].priority) {
-        if (oprs[2].priority < oprs[0].priority) swap(oprs[0], oprs[2]);
-      }
-      else {
-        if (oprs[1].priority < oprs[2].priority) swap(oprs[0], oprs[1]);
-        else swap(oprs[0], oprs[2]);
-      }
-      if (oprs[2].priority < oprs[1].priority) swap(oprs[1], oprs[2]);
-    }
-    else if (osz < 10) { // faster than std::sort on small distance
-      for (size_t i = 0; i < osz - 2; ++i) {
-        size_t iMin = i;
-        size_t minPriort = oprs[i].priority;
-        for (size_t j = i + 1; j < osz; ++j) {
-          if (oprs[j].priority < minPriort) {
-            minPriort = oprs[j].priority;
-            iMin = j;
-          }
-        }
-        if (iMin != i) swap(oprs[i], oprs[iMin]);
-      }
-      if (oprs[osz - 2].priority > oprs[osz - 1].priority) swap(oprs[osz - 2], oprs[osz - 1]);
-    }
-    else {
-      sort(oprs.begin(), oprs.end(), [](const Operatr& l, const Operatr& r) {
-        return l.priority < r.priority;
-        });
-    }
+  if (oprs.size() > 1) {
+    std::sort(oprs.begin(), oprs.end(), [](const Operator& l, const Operator& r) {
+      return l.priority < r.priority;
+    });
   }
 }
 
-bool Interpreter::Impl::parseInstructionScript(string& script, size_t gpos) {
+// --- parse ---
 
-  size_t iExpr = m_expr.size(),
-         cpos = 0;
+bool Interpreter::Impl::skipOneSpareSymbol(const std::string& script, size_t& cpos) {
+  if (cpos >= script.size()) {
+    return false;
+  }
+  const char c = script[cpos];
+  if (c == ';' || c == ',' || c == ']' || c == '[') {
+    ++cpos;
+    return true;
+  }
+  return false;
+}
 
-#define CHECK_PARSE_RETURN(condition)                                                                                                     \
-    if (condition){                                                                                                                       \
-        if (m_err.empty()) m_err = "Error script pos " + to_string(cpos + gpos) + " src line " + to_string(__LINE__) + ": " + #condition; \
-        return false;                                                                                                                     \
+bool Interpreter::Impl::parseControlBody(std::string& script, size_t& cpos, size_t gpos,
+    const char* emptyBodyMsg, const char* invalidBodyMsg) {
+  if (script[cpos] == '{') {
+    std::string body = getIntroScript(script, cpos, '{', '}');
+    if (body.empty() || !parseInstructionScript(body, gpos + cpos - body.size() - 2)) {
+      return failParse(cpos, gpos, emptyBodyMsg);
     }
-#define SPARE_SYMBOL_CONTINUE                                                                       \
-    if (script[cpos] == ';' || script[cpos] == ',' || script[cpos] == ']' || script[cpos] == '[') { \
-      ++cpos;                                                                                       \
-      continue;                                                                                     \
-    }
-
-  size_t iIF = size_t(-1);
-  while (cpos < script.size()) {
-    SPARE_SYMBOL_CONTINUE
-    string attr = getAttributeAtFirst(script, cpos);
-    if (!attr.empty()) {
-      m_exprAttribute[iExpr].push_back(attr);
-      SPARE_SYMBOL_CONTINUE
-    }
-    size_t cposFunc = cpos,
-           cposOpr = cpos;
-    if (!getFunctionAtFirst(script, cposFunc).empty() || !getOperatorAtFirst(script, cposOpr).empty()) {
-        m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
-
-        string expr = getNextParam(script, cpos, ';');
-        CHECK_PARSE_RETURN(expr.empty() || !parseExpressionScript(expr, gpos + cpos - expr.size() - 1));
-
-        iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-    }     
-    else if (startWith(script, cpos, "while") || startWith(script, cpos, "if") || startWith(script, cpos, "elseif")) {
-      const string kname = getNextParam(script, cpos, '(');
-      CHECK_PARSE_RETURN(kname.empty());
-
-      Keyword keyw = keywordByName(kname);
-      m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });
-
-      if (keyw == Keyword::IF) {
-        iIF = iExpr;
-      }
-      else if (keyw == Keyword::ELSE_IF) {
-        m_expr[iExpr].params = to_string(iIF);
-        iIF = iExpr;
-      }
-
-      --cpos;
-      string condition = getIntroScript(script, cpos, '(', ')');
-      CHECK_PARSE_RETURN(condition.empty() || !parseExpressionScript(condition, gpos + cpos - condition.size() - 2));
-
-      m_expr[iExpr].iConditionEnd = m_expr.size();
-
-      if (script[cpos] == '{') {
-        string body = getIntroScript(script, cpos, '{', '}');
-        CHECK_PARSE_RETURN(body.empty() || !parseInstructionScript(body, gpos + cpos - body.size() - 2));
-      }
-      else {
-        string body = getNextParam(script, cpos, ';') + ';';
-        CHECK_PARSE_RETURN((body.size() == 1) || !parseInstructionScript(body, gpos + cpos - body.size()));
-      }
-      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-
-      if ((cpos < script.size()) && (script[cpos] == ';')) ++cpos;
-    }
-    else if (startWith(script, cpos, "else")) {
-      cpos += 4;
-
-      m_expr.emplace_back<Expression>({ Keyword::ELSE, iExpr, iExpr, size_t(-1) });
-
-      m_expr[iExpr].params = to_string(iIF);
-
-      if (script[cpos] == '{') {
-        string body = getIntroScript(script, cpos, '{', '}');
-        CHECK_PARSE_RETURN(body.empty() || !parseInstructionScript(body, gpos + cpos - body.size() - 2));
-      }
-      else {
-        string body = getNextParam(script, cpos, ';') + ';';
-        CHECK_PARSE_RETURN((body.size() == 1) || !parseInstructionScript(body, gpos + cpos - body.size()));
-      }
-      m_expr[iExpr].iConditionEnd = iExpr + 1;
-      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-
-      if ((cpos < script.size()) && (script[cpos] == ';')) ++cpos;
-    }
-    else if (startWith(script, cpos, "break") || startWith(script, cpos, "continue")) {
-      const string kname = getNextParam(script, cpos, ';');
-      CHECK_PARSE_RETURN(kname.empty());
-      const Keyword keyw = keywordByName(kname);
-
-      m_expr.emplace_back<Expression>({ keyw, iExpr, iExpr, size_t(-1) });
-      ++iExpr;
-    }
-    else if (startWith(script, cpos, "#macro")) {  // macro declaration
-      cpos += 6;
-      const string mname = getNextParam(script, cpos, '{');
-
-      cpos -= 1;
-      const string mvalue = getIntroScript(script, cpos, '{', '}');
-      CHECK_PARSE_RETURN(mname.empty() || mvalue.empty());
-
-      m_macro["#" + mname] = mvalue;
-
-      if ((cpos < script.size()) && (script[cpos] == ';')) ++cpos;
-    }
-    else if (script[cpos] == '#') {               // macro definition
-      size_t cposMName = cpos;
-      const string mname = getMacroAtFirst(script, cposMName);
-      CHECK_PARSE_RETURN(mname.empty() || (m_macro.find(mname) == m_macro.end()));
-
-      size_t cposArg = cposMName;
-      const string args = getIntroScript(script, cposArg, '(', ')');
-      string macro = m_macro[mname];
-      if (!args.empty())
-        CHECK_PARSE_RETURN(!parseMacroArgs(args, macro));
-      
-      if (cposArg == cposMName)
-        script.replace(cpos, mname.size(), macro);
-      else
-        script.replace(cpos, (mname + "(" + args + ")").size(), macro);
-    }
-    else if (startWith(script, cpos, "goto")) {
-      cpos += 4;
-      const string lname = getNextParam(script, cpos, ';');
-      CHECK_PARSE_RETURN(lname.empty());
-
-      if (m_label.find(lname) == m_label.end())
-        m_label.insert({ lname, size_t(-1) });
-
-      m_expr.emplace_back<Expression>({ Keyword::GOTO, iExpr, iExpr, size_t(-1), lname });
-      ++iExpr;
-    }
-    else if (startWith(script, cpos, "l_")) {
-      const string lname = getNextParam(script, cpos, ':');
-      CHECK_PARSE_RETURN(lname.empty());
-
-      m_label[lname] = iExpr;
-    }
-    else if (startWith(script, cpos, "function")) {
-      cpos += 8;
-      const string fname = getNextParam(script, cpos, '{');
-      CHECK_PARSE_RETURN(fname.empty());
-
-      cpos -= 1;
-      const string fbody = getIntroScript(script, cpos, '{', '}');
-      CHECK_PARSE_RETURN(fbody.empty());
-
-      Interpreter::Impl fImpl = *this;
-      fImpl.m_internFunc[fname] = {};
-
-      CHECK_PARSE_RETURN(!fImpl.parseScript(fbody, m_err));
-
-      m_internFunc[fname] = fImpl;
-    }
-    else {
-      m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
-
-      string expr = getNextParam(script, cpos, ';');
-      CHECK_PARSE_RETURN(expr.empty() || !parseExpressionScript(expr, gpos + cpos - expr.size() - 1));
-
-      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+  }
+  else {
+    std::string body = getNextParam(script, cpos, ';') + ';';
+    if ((body.size() != 1) && !parseInstructionScript(body, gpos + cpos - body.size())) {
+      return failParse(cpos, gpos, invalidBodyMsg);
     }
   }
   return true;
 }
-bool Interpreter::Impl::parseExpressionScript(string& script, size_t gpos) {
 
-  size_t iExpr = m_expr.size(),
-         cpos = 0;
+bool Interpreter::Impl::parseInstrExprOrOpCall(std::string& script, size_t& cpos, size_t gpos,
+    size_t& iExpr) {
+  size_t cposFunc = cpos;
+  size_t cposOpr = cpos;
+  if (getFunctionAtFirst(script, cposFunc).empty() && getOperatorAtFirst(script, cposOpr).empty()) {
+    return false;
+  }
 
-  string oprName, fName;
+  emplaceExprAt(iExpr, Keyword::EXPRESSION);
+
+  std::string expr = getNextParam(script, cpos, ';');
+  if (expr.empty() || !parseExpressionScript(expr, gpos + cpos - expr.size() - 1)) {
+    return failParse(cpos, gpos, "empty expression");
+  }
+
+  iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+  return true;
+}
+
+bool Interpreter::Impl::parseInstrControlFlow(std::string& script, size_t& cpos, size_t gpos,
+    size_t& iExpr, size_t& iIF) {
+  if (!startWith(script, cpos, "while") && !startWith(script, cpos, "if")
+      && !startWith(script, cpos, "elseif")) {
+    if (!startWith(script, cpos, "break") && !startWith(script, cpos, "continue")) {
+      return false;
+    }
+
+    const std::string kname = getNextParam(script, cpos, ';');
+    if (kname.empty()) {
+      return failParse(cpos, gpos, "expected break or continue");
+    }
+    emplaceExpr(iExpr, keywordByName(kname));
+    return true;
+  }
+
+  const std::string kname = getNextParam(script, cpos, '(');
+  if (kname.empty()) {
+    return failParse(cpos, gpos, "expected keyword");
+  }
+
+  const Keyword keyw = keywordByName(kname);
+  emplaceExprAt(iExpr, keyw);
+
+  if (keyw == Keyword::IF) {
+    iIF = iExpr;
+  }
+  else if (keyw == Keyword::ELSE_IF) {
+    m_expr[iExpr].params = { static_cast<int64_t>(iIF) };
+    iIF = iExpr;
+  }
+
+  --cpos;
+  std::string condition = getIntroScript(script, cpos, '(', ')');
+  if (condition.empty() || !parseExpressionScript(condition, gpos + cpos - condition.size() - 2)) {
+    return failParse(cpos, gpos, "empty condition");
+  }
+
+  m_expr[iExpr].iConditionEnd = m_expr.size();
+
+  if (!parseControlBody(script, cpos, gpos, "empty body", "invalid instruction body")) {
+    return true;
+  }
+
+  iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+
+  if ((cpos < script.size()) && (script[cpos] == ';')) {
+    ++cpos;
+  }
+  return true;
+}
+
+bool Interpreter::Impl::parseInstrElse(std::string& script, size_t& cpos, size_t gpos,
+    size_t& iExpr, size_t iIF) {
+  if (!startWith(script, cpos, "else")) {
+    return false;
+  }
+
+  cpos += 4;
+
+  emplaceExprAt(iExpr, Keyword::ELSE);
+  m_expr[iExpr].params = { static_cast<int64_t>(iIF) };
+
+  if (!parseControlBody(script, cpos, gpos, "empty else body", "invalid else body")) {
+    return true;
+  }
+
+  m_expr[iExpr].iConditionEnd = iExpr + 1;
+  iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+
+  if ((cpos < script.size()) && (script[cpos] == ';')) {
+    ++cpos;
+  }
+  return true;
+}
+
+bool Interpreter::Impl::parseInstrMacro(std::string& script, size_t& cpos, size_t gpos) {
+  if (startWith(script, cpos, "#macro")) {
+    cpos += 6;
+    const std::string mname = getNextParam(script, cpos, '{');
+
+    --cpos;
+    const std::string mvalue = getIntroScript(script, cpos, '{', '}');
+    if (mname.empty() || mvalue.empty()) {
+      return failParse(cpos, gpos, "empty macro declaration");
+    }
+
+    m_macro["#" + mname] = mvalue;
+
+    if ((cpos < script.size()) && (script[cpos] == ';')) {
+      ++cpos;
+    }
+    return true;
+  }
+
+  if (cpos >= script.size() || script[cpos] != '#') {
+    return false;
+  }
+
+  size_t cposMName = cpos;
+  const std::string mname = getMacroAtFirst(script, cposMName);
+  if (mname.empty() || (m_macro.find(mname) == m_macro.end())) {
+    return failParse(cpos, gpos, "unknown macro");
+  }
+
+  size_t cposArg = cposMName;
+  const std::string args = getIntroScript(script, cposArg, '(', ')');
+  std::string macro = m_macro[mname];
+  if (!args.empty() && !parseMacroArgs(args, macro)) {
+    return failParse(cpos, gpos, "invalid macro arguments");
+  }
+
+  if (cposArg == cposMName) {
+    script.replace(cpos, mname.size(), macro);
+  }
+  else {
+    script.replace(cpos, (mname + "(" + args + ")").size(), macro);
+  }
+  return true;
+}
+
+bool Interpreter::Impl::parseInstrGotoLabel(std::string& script, size_t& cpos, size_t gpos,
+    size_t& iExpr) {
+  if (startWith(script, cpos, "goto")) {
+    cpos += 4;
+    const std::string lname = getNextParam(script, cpos, ';');
+    if (lname.empty()) {
+      return failParse(cpos, gpos, "empty goto label");
+    }
+
+    if (m_label.find(lname) == m_label.end()) {
+      m_label.insert({ lname, ir::detail::kNoIndex });
+    }
+
+    emplaceExpr(iExpr, Keyword::GOTO, Interpreter::makeParam(lname));
+    return true;
+  }
+
+  if (!startWith(script, cpos, "l_")) {
+    return false;
+  }
+
+  const std::string lname = getNextParam(script, cpos, ':');
+  if (lname.empty()) {
+    return failParse(cpos, gpos, "empty label name");
+  }
+
+  m_label[lname] = iExpr;
+  return true;
+}
+
+bool Interpreter::Impl::parseInstrFunctionDecl(std::string& script, size_t& cpos, size_t gpos) {
+  if (!startWith(script, cpos, "function")) {
+    return false;
+  }
+
+  cpos += 8;
+  const std::string fname = getNextParam(script, cpos, '{');
+  if (fname.empty()) {
+    return failParse(cpos, gpos, "empty function name");
+  }
+
+  --cpos;
+  const std::string fbody = getIntroScript(script, cpos, '{', '}');
+  if (fbody.empty()) {
+    return failParse(cpos, gpos, "empty function body");
+  }
+
+  Impl fImpl = makeChildImplForParse();
+  fImpl.m_internFunc[fname] = {};
+
+  if (!fImpl.parseScript(fbody, m_parseErr)) {
+    return failParse(cpos, gpos, "invalid function body");
+  }
+
+  m_internFunc[fname] = std::move(fImpl);
+  return true;
+}
+
+bool Interpreter::Impl::parseInstrStatementExpr(std::string& script, size_t& cpos, size_t gpos,
+    size_t& iExpr) {
+  emplaceExprAt(iExpr, Keyword::EXPRESSION);
+
+  std::string expr = getNextParam(script, cpos, ';');
+  if (expr.empty() || !parseExpressionScript(expr, gpos + cpos - expr.size() - 1)) {
+    return failParse(cpos, gpos, "empty expression");
+  }
+
+  iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+  return true;
+}
+
+bool Interpreter::Impl::parseInstructionScript(std::string& script, size_t gpos) {
+  size_t iExpr = m_expr.size();
+  size_t cpos = 0;
+  size_t iIF = ir::detail::kNoIndex;
+
   while (cpos < script.size()) {
-    SPARE_SYMBOL_CONTINUE
-    string attr = getAttributeAtFirst(script, cpos);
+    if (skipOneSpareSymbol(script, cpos)) {
+      continue;
+    }
+
+    std::string attr = getAttributeAtFirst(script, cpos);
     if (!attr.empty()) {
       m_exprAttribute[iExpr].push_back(attr);
-      SPARE_SYMBOL_CONTINUE
+      if (skipOneSpareSymbol(script, cpos)) {
+        continue;
+      }
     }
-    if (script[cpos] == '$') {
-      size_t posmem = cpos;
-      oprName = getNextOperator(script, cpos);
 
-      size_t bodyBeginF = script.find('{', posmem);
-      size_t bodyBeginQ = script.find('[', posmem);
-      size_t bodyBegin = bodyBeginF;
-      char bodyBeginSym = '{', bodyEndSym = '}';
-      if (bodyBeginQ < bodyBeginF){
-        bodyBegin = bodyBeginQ;
-        bodyBeginSym = '[';
-        bodyEndSym = ']';
+    if (parseInstrExprOrOpCall(script, cpos, gpos, iExpr)) {
+      if (!m_parseErr.message.empty()) {
+        return false;
       }
-      if ((!oprName.empty() && (bodyBegin < cpos)) || (oprName.empty() && (bodyBegin != string::npos))) {
-        const string vName = script.substr(posmem, bodyBegin - posmem);
-        string value = getIntroScript(script, bodyBegin, bodyBeginSym, bodyEndSym);
-        if (!value.empty()) {
-          if (value[0] == '"') 
-            value = value.substr(1);
-          if (!value.empty() && (value.back() == '"'))
-            value.pop_back();
-        }
-        m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
-        if (oprName == "[" && bodyBeginSym == '['){
-          m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
-        }
-        m_var[vName] = value;
-
-        cpos = bodyBegin;
+      continue;
+    }
+    if (parseInstrControlFlow(script, cpos, gpos, iExpr, iIF)) {
+      if (!m_parseErr.message.empty()) {
+        return false;
       }
-      else if (!oprName.empty()) {
-        string vName = script.substr(posmem, cpos - posmem - oprName.size());
-        if (m_var.find(vName) == m_var.end())
-          m_var.insert({ vName, "" });
-
-        m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName }); ++iExpr;
-        m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
+      continue;
+    }
+    if (parseInstrElse(script, cpos, gpos, iExpr, iIF)) {
+      if (!m_parseErr.message.empty()) {
+        return false;
       }
-      else {        
-        string vName = script.substr(cpos);
+      continue;
+    }
+    if (parseInstrMacro(script, cpos, gpos)) {
+      if (!m_parseErr.message.empty()) {
+        return false;
+      }
+      continue;
+    }
+    if (parseInstrGotoLabel(script, cpos, gpos, iExpr)) {
+      if (!m_parseErr.message.empty()) {
+        return false;
+      }
+      continue;
+    }
+    if (parseInstrFunctionDecl(script, cpos, gpos)) {
+      if (!m_parseErr.message.empty()) {
+        return false;
+      }
+      continue;
+    }
+    if (parseInstrStatementExpr(script, cpos, gpos, iExpr)) {
+      if (!m_parseErr.message.empty()) {
+        return false;
+      }
+      continue;
+    }
+    if (!m_parseErr.message.empty()) {
+      return false;
+    }
+  }
+  return true;
+}
 
-        if (vName.back() == ';') vName.pop_back();
+void Interpreter::Impl::emplaceSyntheticNegatePrefix(size_t& iExpr) {
+  emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(std::string_view{}), int64_t{0});
+  emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(std::string{"-"}));
+}
 
-        if (m_var.find(vName) == m_var.end())
-          m_var.insert({ vName, "" });
+void Interpreter::Impl::mergeInternFuncs(Impl& callee) const {
+  for (const auto& f : m_internFunc) {
+    if (!callee.m_internFunc.count(f.first) || callee.m_internFunc[f.first].m_prevScript.empty()) {
+      callee.m_internFunc[f.first] = f.second;
+    }
+  }
+}
 
-        m_expr.emplace_back<Expression>({ Keyword::VARIABLE, iExpr, iExpr, size_t(-1), vName });
-        
+void Interpreter::Impl::bindCallerScope(Impl& callee, const std::vector<Interpreter::Value>& args,
+    std::set<std::string>& outScopeVars) const {
+  for (const auto& var : m_var) {
+    if (callee.m_var.count(var.first)) {
+      callee.m_var[var.first] = var.second;
+      outScopeVars.insert(var.first);
+    }
+  }
+  for (size_t i = 0; i < args.size(); ++i) {
+    callee.m_var["$" + std::to_string(i)] = args[i];
+  }
+}
+
+void Interpreter::Impl::writeBackScope(Impl& callee, const std::set<std::string>& scopeVars) {
+  for (const auto& var : callee.m_var) {
+    if (scopeVars.count(var.first)) {
+      m_var[var.first] = var.second;
+    }
+  }
+}
+
+bool Interpreter::Impl::parseExprPrimary(std::string& script, size_t& cpos, size_t& iExpr,
+    size_t gpos, bool& breakLoop) {
+  breakLoop = false;
+  std::string oprName, fName;
+
+  if (script[cpos] == '$') {
+    const size_t posmem = cpos;
+    oprName = getNextOperator(script, cpos);
+    const auto outcome = parseNamedInitBody(
+      Keyword::VARIABLE, true, script, cpos, iExpr, posmem, oprName);
+    if (outcome == ParseInitOutcome::BreakLoop) {
+      breakLoop = true;
+      return true;
+    }
+    if (outcome == ParseInitOutcome::Handled) {
+      return true;
+    }
+    return false;
+  }
+  if (!(fName = peekFunctionCall(script, cpos)).empty()) {
+    if (!m_ufunc.count(fName) && !m_internFunc.count(fName)) {
+      failParse(cpos, gpos, "unknown function");
+      return false;
+    }
+    cpos += fName.size();
+
+    emplaceExprAt(iExpr, Keyword::FUNCTION, Interpreter::makeParam(fName));
+
+    const size_t cposMem = cpos;
+    std::string args = getIntroScript(script, cpos, '(', ')');
+    if (args.empty() && (cposMem + 2 != cpos)) {
+      failParse(cpos, gpos, "empty function arguments");
+      return false;
+    }
+    if (!args.empty() && !parseArgumentScript(args, gpos + cpos - args.size() - 2)) {
+      failParse(cpos, gpos, "invalid function arguments");
+      return false;
+    }
+
+    iExpr = m_expr[iExpr].iConditionEnd = m_expr.size();
+
+    if ((cpos < script.size()) && (script[cpos] == ';')) {
+      ++cpos;
+    }
+    return true;
+  }
+  if (script[cpos] == '(') {
+    std::string expr = getIntroScript(script, cpos, '(', ')');
+
+    emplaceExprAt(iExpr, Keyword::EXPRESSION);
+
+    if (expr.empty() || !parseExpressionScript(expr, gpos + cpos - expr.size() - 2)) {
+      failParse(cpos, gpos, "empty parenthesized expression");
+      return false;
+    }
+
+    iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+
+    if ((cpos < script.size()) && (script[cpos] == ';')) {
+      ++cpos;
+    }
+    return true;
+  }
+  if (script[cpos] == '#') {
+    size_t cposMName = cpos;
+    const std::string mname = getMacroAtFirst(script, cposMName);
+    if (mname.empty() || (m_macro.find(mname) == m_macro.end())) {
+      failParse(cpos, gpos, "unknown macro");
+      return false;
+    }
+
+    size_t cposArg = cposMName;
+    const std::string args = getIntroScript(script, cposArg, '(', ')');
+    std::string macro = m_macro[mname];
+    if (!args.empty() && !parseMacroArgs(args, macro)) {
+      failParse(cpos, gpos, "invalid macro arguments");
+      return false;
+    }
+
+    if (cposArg == cposMName) {
+      script.replace(cpos, mname.size(), macro);
+    }
+    else {
+      script.replace(cpos, (mname + "(" + args + ")").size(), macro);
+    }
+    return true;
+  }
+  if (script[cpos] == '"') {
+    ++cpos;
+    const std::string vName = getNextParam(script, cpos, '"');
+    emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(vName));
+    return true;
+  }
+  if (script[cpos] == '{') {
+    const std::string value = getIntroScript(script, cpos, '{', '}');
+    emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(std::string_view{}), std::string{value});
+    return true;
+  }
+  if (std::isdigit(static_cast<unsigned char>(script[cpos]))) {
+    size_t end = cpos;
+    while (end < script.size()) {
+      const unsigned char c = static_cast<unsigned char>(script[end]);
+      if (!std::isdigit(c) && script[end] != '.') {
         break;
       }
+      ++end;
     }
-    else if (!(fName = getFunctionAtFirst(script, cpos)).empty()) {
-      CHECK_PARSE_RETURN(!m_ufunc.count(fName) && !m_internFunc.count(fName));
-
-      m_expr.emplace_back<Expression>({ Keyword::FUNCTION, iExpr, iExpr, size_t(-1), fName });
-
-      size_t cposMem = cpos;
-      string args = getIntroScript(script, cpos, '(', ')');
-      CHECK_PARSE_RETURN(args.empty() && (cposMem + 2 != cpos));
-      if (!args.empty())
-        CHECK_PARSE_RETURN(!parseArgumentScript(args, gpos + cpos - args.size() - 2));
-
-      iExpr = m_expr[iExpr].iConditionEnd = m_expr.size();
-
-      if ((cpos < script.size()) && (script[cpos] == ';')) ++cpos;
+    emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(script.substr(cpos, end - cpos)));
+    cpos = end;
+    return true;
+  }
+  if (isUnaryMinusAt(script, cpos)) {
+    return false;
+  }
+  {
+    const size_t cposMem = cpos;
+    if (!getOperatorAtFirst(script, cpos).empty()) {
+      cpos = cposMem;
+      return false;
     }
-    else if (script[cpos] == '(') {
-      string expr = getIntroScript(script, cpos, '(', ')');
+  }
+  const size_t posmem = cpos;
+  oprName = getNextOperator(script, cpos);
+  const auto outcome = parseNamedInitBody(
+    Keyword::VALUE, false, script, cpos, iExpr, posmem, oprName);
+  if (outcome == ParseInitOutcome::BreakLoop) {
+    breakLoop = true;
+    return true;
+  }
+  if (outcome == ParseInitOutcome::Handled) {
+    return true;
+  }
+  return false;
+}
 
-      m_expr.emplace_back<Expression>({ Keyword::EXPRESSION, iExpr, iExpr, size_t(-1) });
+bool Interpreter::Impl::parseExprUnary(std::string& script, size_t& cpos, size_t& iExpr, size_t gpos) {
+  if (!isUnaryMinusAt(script, cpos)) {
+    return false;
+  }
 
-      CHECK_PARSE_RETURN(expr.empty() || !parseExpressionScript(expr, gpos + cpos - expr.size() - 2));
+  const size_t minusPos = cpos;
+  ++cpos;
 
-      iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
-
-      if ((cpos < script.size()) && (script[cpos] == ';')) ++cpos;
-    }
-    else if (script[cpos] == '#') {
-      size_t cposMName = cpos;
-      const string mname = getMacroAtFirst(script, cposMName);
-      CHECK_PARSE_RETURN(mname.empty() || (m_macro.find(mname) == m_macro.end()));
-
-      size_t cposArg = cposMName;
-      const string args = getIntroScript(script, cposArg, '(', ')');
-      string macro = m_macro[mname];
-      if (!args.empty())
-        CHECK_PARSE_RETURN(!parseMacroArgs(args, macro));
-
-      if (cposArg == cposMName)
-          script.replace(cpos, mname.size(), macro);
-      else
-          script.replace(cpos, (mname + "(" + args + ")").size(), macro);
-    }
-    else if (!(oprName = getOperatorAtFirst(script, cpos)).empty()) {
-      CHECK_PARSE_RETURN(m_uoper.find(oprName) == m_uoper.end());
-
-      m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-    }
-    else {  // value
-      if (script[cpos] == '"') {
-        ++cpos;
-        const string vName = getNextParam(script, cpos, '"');
-        m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName }); ++iExpr;
+  if (cpos < script.size() && std::isdigit(static_cast<unsigned char>(script[cpos]))) {
+    size_t end = cpos;
+    while (end < script.size()) {
+      const unsigned char c = static_cast<unsigned char>(script[end]);
+      if (!std::isdigit(c) && script[end] != '.') {
+        break;
       }
-      else if (script[cpos] == '{') {
-        const string value = getIntroScript(script, cpos, '{', '}');
-        m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), "", value }); ++iExpr; // empty name
+      ++end;
+    }
+    emplaceExpr(iExpr, Keyword::VALUE, Interpreter::makeParam(script.substr(minusPos, end - minusPos)));
+    cpos = end;
+    return true;
+  }
+
+  if (cpos < script.size() && script[cpos] == '$') {
+    emplaceSyntheticNegatePrefix(iExpr);
+    bool breakLoop = false;
+    if (!parseExprPrimary(script, cpos, iExpr, gpos, breakLoop)) {
+      return failParse(cpos, gpos, "expected variable after unary minus");
+    }
+    return true;
+  }
+
+  if (cpos < script.size() && script[cpos] == '(') {
+    emplaceSyntheticNegatePrefix(iExpr);
+    std::string expr = getIntroScript(script, cpos, '(', ')');
+    emplaceExprAt(iExpr, Keyword::EXPRESSION);
+    if (expr.empty() || !parseExpressionScript(expr, gpos + cpos - expr.size() - 2)) {
+      return failParse(cpos, gpos, "empty parenthesized expression");
+    }
+    iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
+    return true;
+  }
+
+  return failParse(minusPos, gpos, "invalid unary minus");
+}
+
+bool Interpreter::Impl::parseExprOperator(std::string& script, size_t& cpos, size_t& iExpr, size_t gpos) {
+  std::string oprName = getOperatorAtFirst(script, cpos);
+  if (oprName.empty()) {
+    return false;
+  }
+  if (m_uoper.find(oprName) == m_uoper.end()) {
+    return failParse(cpos, gpos, "unknown operator");
+  }
+  emplaceExpr(iExpr, Keyword::OPERATOR, Interpreter::makeParam(oprName));
+  return true;
+}
+
+bool Interpreter::Impl::parseExpressionScript(std::string& script, size_t gpos) {
+
+  size_t iExpr = m_expr.size(),
+         cpos = 0;
+
+  while (cpos < script.size()) {
+    if (skipOneSpareSymbol(script, cpos)) {
+      continue;
+    }
+    std::string attr = getAttributeAtFirst(script, cpos);
+    if (!attr.empty()) {
+      m_exprAttribute[iExpr].push_back(attr);
+      if (skipOneSpareSymbol(script, cpos)) {
+        continue;
       }
-      else {
-        size_t posmem = cpos;
-        oprName = getNextOperator(script, cpos);
-
-        size_t bodyBeginF = script.find('{', posmem);
-        size_t bodyBeginQ = script.find('[', posmem);
-        size_t bodyBegin = bodyBeginF;
-        char bodyBeginSym = '{', bodyEndSym = '}';
-        if (bodyBeginQ < bodyBeginF){
-          bodyBegin = bodyBeginQ;
-          bodyBeginSym = '[';
-          bodyEndSym = ']';
-        }
-        if ((!oprName.empty() && (bodyBegin < cpos)) || (oprName.empty() && (bodyBegin != string::npos))) {
-          const string vName = script.substr(posmem, bodyBegin - posmem);         
-          const string value = getIntroScript(script, bodyBegin, bodyBeginSym, bodyEndSym);
-          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
-          if (oprName == "[" && bodyBeginSym == '['){
-            m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-            m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName, value }); ++iExpr;
-          }
-          cpos = bodyBegin;
-        }
-        else if (!oprName.empty()) {
-          const string vName = script.substr(posmem, cpos - posmem - oprName.size());
-
-          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName }); ++iExpr;
-          m_expr.emplace_back<Expression>({ Keyword::OPERATOR, iExpr, iExpr, size_t(-1), oprName }); ++iExpr;
-        }
-        else {
-          string vName = script.substr(cpos);
-
-          if (vName.back() == ';') vName.pop_back();
-
-          m_expr.emplace_back<Expression>({ Keyword::VALUE, iExpr, iExpr, size_t(-1), vName });
-          break;
-        }
+    }
+    bool breakLoop = false;
+    if (parseExprPrimary(script, cpos, iExpr, gpos, breakLoop)) {
+      if (breakLoop) {
+        break;
       }
+      continue;
+    }
+    if (!m_parseErr.message.empty()) {
+      return false;
+    }
+    if (parseExprUnary(script, cpos, iExpr, gpos)) {
+      continue;
+    }
+    if (!m_parseErr.message.empty()) {
+      return false;
+    }
+    if (parseExprOperator(script, cpos, iExpr, gpos)) {
+      continue;
+    }
+    if (!m_parseErr.message.empty()) {
+      return false;
     }
   }
   return true;
 }
-bool Interpreter::Impl::parseArgumentScript(string& script, size_t gpos) {
+bool Interpreter::Impl::parseArgumentScript(std::string& script, size_t gpos) {
 
   size_t iExpr = m_expr.size(),
          cpos = 0,
@@ -1005,12 +1440,14 @@ bool Interpreter::Impl::parseArgumentScript(string& script, size_t gpos) {
     if (script[cp] == '(') ++bordCnt;
     if (script[cp] == ')') --bordCnt;
     if (((script[cp] == ',') || (cp == script.size() - 1)) && (bordCnt == 0)) {
-      m_expr.emplace_back<Expression>({ Keyword::ARGUMENT, iExpr, iExpr, size_t(-1) });
+      emplaceExprAt(iExpr, Keyword::ARGUMENT);
 
       if (cp == script.size() - 1) ++cp;
 
-      string arg = script.substr(cpos, cp - cpos);
-      CHECK_PARSE_RETURN(!arg.empty() && !parseExpressionScript(arg, gpos + cpos));
+      std::string arg = script.substr(cpos, cp - cpos);
+      if (!arg.empty() && !parseExpressionScript(arg, gpos + cpos)) {
+        return failParse(cpos, gpos, "invalid argument expression");
+      }
 
       iExpr = m_expr[iExpr].iBodyEnd = m_expr.size();
       cpos = cp + 1;
@@ -1019,7 +1456,7 @@ bool Interpreter::Impl::parseArgumentScript(string& script, size_t gpos) {
   }
   return true;
 }
-bool Interpreter::Impl::parseMacroArgs(const string& args, string& macro) {
+bool Interpreter::Impl::parseMacroArgs(const std::string& args, std::string& macro) {
 
   size_t ssz = args.size(),
          cpos = 0,
@@ -1034,15 +1471,15 @@ bool Interpreter::Impl::parseMacroArgs(const string& args, string& macro) {
      
       if (cp == ssz - 1) ++cp;
 
-      const string arg = args.substr(cpos, cp - cpos);
+      const std::string arg = args.substr(cpos, cp - cpos);
       
       size_t argPos = 0;
-      argPos = macro.find("$" + to_string(argIndex), argPos);
-      while (argPos != string::npos) {
+      argPos = macro.find("$" + std::to_string(argIndex), argPos);
+      while (argPos != std::string::npos) {
       
-        macro.replace(argPos, ("$" + to_string(argIndex)).size(), arg);
+        macro.replace(argPos, ("$" + std::to_string(argIndex)).size(), arg);
 
-        argPos = macro.find("$" + to_string(argIndex), argPos);
+        argPos = macro.find("$" + std::to_string(argIndex), argPos);
       }
 
       cpos = cp + 1;
@@ -1053,33 +1490,33 @@ bool Interpreter::Impl::parseMacroArgs(const string& args, string& macro) {
   return true;
 }
 
-string Interpreter::Impl::getNextParam(const string& script, size_t& cpos, char symb) const {
+std::string Interpreter::Impl::getNextParam(const std::string& script, size_t& cpos, char symb) const {
   size_t pos = script.find(symb, cpos);
-  string res;
-  if (pos != string::npos) {
+  std::string res;
+  if (pos != std::string::npos) {
     res = script.substr(cpos, pos - cpos);
     cpos = pos + 1;
   }
   return res;
 }
-string Interpreter::Impl::getNextOperator(const string& script, size_t& cpos) const {
-  size_t minp = string::npos;
-  string opr;
+std::string Interpreter::Impl::getNextOperator(const std::string& script, size_t& cpos) const {
+  size_t minp = std::string::npos;
+  std::string opr;
   for (const auto& op : m_uoper) {
     size_t pos = script.find(op.first, cpos);
-    if ((pos != string::npos) && ((pos <= minp) || (minp == string::npos))) {
+    if ((pos != std::string::npos) && ((pos <= minp) || (minp == std::string::npos))) {
       if (opr.empty() || (pos < minp) || (opr.size() < op.first.size()))
         opr = op.first;
       minp = pos;
     }
   }
-  if (minp != string::npos) {
+  if (minp != std::string::npos) {
     cpos = minp + opr.size();
   }
   return opr;
 }
-string Interpreter::Impl::getOperatorAtFirst(const string& script, size_t& cpos) const {
-  string opr;
+std::string Interpreter::Impl::getOperatorAtFirst(const std::string& script, size_t& cpos) const {
+  std::string opr;
   for (const auto& op : m_uoper) {
     if (startWith(script, cpos, op.first)) {
       if (opr.empty() || (opr.size() < op.first.size()))
@@ -1089,8 +1526,26 @@ string Interpreter::Impl::getOperatorAtFirst(const string& script, size_t& cpos)
   cpos += opr.size();
   return opr;
 }
-string Interpreter::Impl::getFunctionAtFirst(const string& script, size_t& cpos) const {
-  string fName;
+std::string Interpreter::Impl::peekFunctionCall(const std::string& script, size_t cpos) const {
+  if (cpos >= script.size()) {
+    return {};
+  }
+  size_t end = cpos;
+  while (end < script.size()) {
+    const unsigned char c = static_cast<unsigned char>(script[end]);
+    if (!std::isalnum(c) && script[end] != '_') {
+      break;
+    }
+    ++end;
+  }
+  if (end == cpos || end >= script.size() || script[end] != '(') {
+    return {};
+  }
+  return script.substr(cpos, end - cpos);
+}
+
+std::string Interpreter::Impl::getFunctionAtFirst(const std::string& script, size_t& cpos) const {
+  std::string fName;
   for (const auto& f : m_ufunc) {
     if (startWith(script, cpos, f.first)) {
       if (fName.empty() || (fName.size() < f.first.size()))
@@ -1108,8 +1563,8 @@ string Interpreter::Impl::getFunctionAtFirst(const string& script, size_t& cpos)
   cpos += fName.size();
   return fName;
 }
-string Interpreter::Impl::getMacroAtFirst(const string& script, size_t& cpos) const {
-  string mName;
+std::string Interpreter::Impl::getMacroAtFirst(const std::string& script, size_t& cpos) const {
+  std::string mName;
   for (const auto& m : m_macro) {
     if (startWith(script, cpos, m.first)) {
       if (mName.empty() || (mName.size() < m.first.size()))
@@ -1119,8 +1574,8 @@ string Interpreter::Impl::getMacroAtFirst(const string& script, size_t& cpos) co
   cpos += mName.size();
   return mName;
 }
-string Interpreter::Impl::getAttributeAtFirst(const string& script, size_t& cpos) const {
-  string mName;
+std::string Interpreter::Impl::getAttributeAtFirst(const std::string& script, size_t& cpos) const {
+  std::string mName;
   for (const auto& m : m_attribute) {
     if (startWith(script, cpos, m)) {
       if (mName.empty() || (mName.size() < m.size()))
@@ -1130,7 +1585,35 @@ string Interpreter::Impl::getAttributeAtFirst(const string& script, size_t& cpos
   cpos += mName.size();
   return mName;
 }
-string Interpreter::Impl::getIntroScript(const string& script, size_t& cpos, char symbBegin, char symbEnd) const {
+bool Interpreter::Impl::isUnaryMinusContext(const std::string& script, size_t cpos) const {
+  if (cpos == 0) {
+    return true;
+  }
+  const char prev = script[cpos - 1];
+  if (prev == '(' || prev == ',' || prev == ';' || prev == '[' || prev == '{') {
+    return true;
+  }
+  for (const auto& op : m_uoper) {
+    if (cpos >= op.first.size() &&
+        script.compare(cpos - op.first.size(), op.first.size(), op.first) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Interpreter::Impl::isUnaryMinusAt(const std::string& script, size_t cpos) const {
+  if (cpos >= script.size() || script[cpos] != '-' || cpos + 1 >= script.size()) {
+    return false;
+  }
+  if (!isUnaryMinusContext(script, cpos)) {
+    return false;
+  }
+  const char next = script[cpos + 1];
+  return std::isdigit(static_cast<unsigned char>(next)) || next == '$' || next == '(';
+}
+
+std::string Interpreter::Impl::getIntroScript(const std::string& script, size_t& cpos, char symbBegin, char symbEnd) const {
   size_t ssz = script.size(),
     cp = cpos;
   int bordCnt = 0;
@@ -1140,7 +1623,7 @@ string Interpreter::Impl::getIntroScript(const string& script, size_t& cpos, cha
     if (bordCnt == 0) break;
     ++cp;
   }
-  string res;
+  std::string res;
   if ((bordCnt == 0) && (cp > cpos)) {
     res = script.substr(cpos + 1, cp - cpos - 1);
     cpos = cp + 1;
@@ -1148,7 +1631,7 @@ string Interpreter::Impl::getIntroScript(const string& script, size_t& cpos, cha
   return res;
 }
 
-bool Interpreter::Impl::isFindKeySymbol(const string& script, size_t cpos, size_t maxpos) const {
+bool Interpreter::Impl::isFindKeySymbol(const std::string& script, size_t cpos, size_t maxpos) const {
   return (script.find('(', cpos) < maxpos) ||
     (script.find(')', cpos) < maxpos) ||
     (script.find('{', cpos) < maxpos) ||
@@ -1159,101 +1642,116 @@ bool Interpreter::Impl::isFindKeySymbol(const string& script, size_t cpos, size_
     (script.find('"', cpos) < maxpos) ||
     (script.find('$', cpos) < maxpos);
 }
-bool Interpreter::Impl::startWith(const string& str, size_t pos, const string& begin) const {
-  return (str.find(begin, pos) - pos) == 0;
-}
-bool Interpreter::Impl::isNumber(const string& s) const {
-  for (auto c : s) {
-    if (!std::isdigit(c)) {
-      return false;
-    }
+bool Interpreter::Impl::startWith(std::string_view str, size_t pos, std::string_view begin) const {
+  if (pos + begin.size() > str.size()) {
+    return false;
   }
-  return !s.empty();
-}
-Interpreter::Impl::Keyword Interpreter::Impl::keywordByName(const string& oprName) const {
-  Keyword nextOpr = Keyword::INSTRUCTION;
-  if (oprName == "if") nextOpr = Keyword::IF;
-  else if (oprName == "else") nextOpr = Keyword::ELSE;
-  else if (oprName == "elseif") nextOpr = Keyword::ELSE_IF;
-  else if (oprName == "while") nextOpr = Keyword::WHILE;
-  else if (oprName == "break") nextOpr = Keyword::BREAK;
-  else if (oprName == "goto") nextOpr = Keyword::GOTO;
-  else if (oprName == "#macro") nextOpr = Keyword::MACRO;
-  else if (oprName == "continue") nextOpr = Keyword::CONTINUE;
-  return nextOpr;
-}
-Interpreter::EntityType Interpreter::Impl::keywordToEntityType(Keyword keyw) const {
-  switch (keyw){
-  case Interpreter::Impl::Keyword::EXPRESSION: return Interpreter::EntityType::EXPRESSION;
-  case Interpreter::Impl::Keyword::OPERATOR:   return Interpreter::EntityType::OPERATOR;
-  case Interpreter::Impl::Keyword::WHILE:      return Interpreter::EntityType::WHILE;
-  case Interpreter::Impl::Keyword::IF:         return Interpreter::EntityType::IF;
-  case Interpreter::Impl::Keyword::ELSE:       return Interpreter::EntityType::ELSE;
-  case Interpreter::Impl::Keyword::ELSE_IF:    return Interpreter::EntityType::ELSE_IF;
-  case Interpreter::Impl::Keyword::BREAK:      return Interpreter::EntityType::BREAK;
-  case Interpreter::Impl::Keyword::CONTINUE:   return Interpreter::EntityType::CONTINUE;
-  case Interpreter::Impl::Keyword::FUNCTION:   return Interpreter::EntityType::FUNCTION;
-  case Interpreter::Impl::Keyword::ARGUMENT:   return Interpreter::EntityType::ARGUMENT;
-  case Interpreter::Impl::Keyword::VARIABLE:   return Interpreter::EntityType::VARIABLE;
-  case Interpreter::Impl::Keyword::VALUE:      return Interpreter::EntityType::VALUE;
-  case Interpreter::Impl::Keyword::GOTO:       return Interpreter::EntityType::GOTO;
-  default:                                   return Interpreter::EntityType::EXPRESSION;
-  }  
+  return str.compare(pos, begin.size(), begin) == 0;
 }
 
-Interpreter::Interpreter() {
-  m_d = new Interpreter::Impl();
+Interpreter::Value Interpreter::Impl::variableByKey(const std::string& key) const {
+  auto it = m_var.find(key);
+  return it != m_var.end() ? it->second : Interpreter::Value{std::string{}};
 }
-Interpreter::~Interpreter() {
-  if (m_d) delete m_d;
+
+Interpreter::Value Interpreter::Impl::evalOperand(size_t iExpr) {
+  Expression& exp = m_expr[iExpr];
+  if (exp.iOperator != ir::detail::kNoIndex) {
+    return m_expr[exp.iOperator].result;
+  }
+  switch (exp.keyw) {
+  case Keyword::VARIABLE:
+    return variableByKey(ir::detail::paramKey(exp.params));
+  case Keyword::VALUE:
+    return Interpreter::valueFromParams(exp.params, exp.result);
+  default:
+    return calcOperation(exp.keyw, iExpr);
+  }
 }
-Interpreter::Interpreter(const Interpreter& other) {
-  m_d = new Interpreter::Impl();
-  if (other.m_d)
+Interpreter::Impl::Keyword Interpreter::Impl::keywordByName(std::string_view oprName) const {
+  if (oprName == "if") return Keyword::IF;
+  if (oprName == "else") return Keyword::ELSE;
+  if (oprName == "elseif") return Keyword::ELSE_IF;
+  if (oprName == "while") return Keyword::WHILE;
+  if (oprName == "break") return Keyword::BREAK;
+  if (oprName == "goto") return Keyword::GOTO;
+  if (oprName == "#macro") return Keyword::MACRO;
+  if (oprName == "continue") return Keyword::CONTINUE;
+  return Keyword::INSTRUCTION;
+}
+Interpreter::EntityType Interpreter::Impl::keywordToEntityType(Keyword keyw) const {
+  static constexpr Interpreter::EntityType kMap[] = {
+    Interpreter::EntityType::EXPRESSION,  // INSTRUCTION
+    Interpreter::EntityType::EXPRESSION,
+    Interpreter::EntityType::OPERATOR,
+    Interpreter::EntityType::WHILE,
+    Interpreter::EntityType::IF,
+    Interpreter::EntityType::ELSE,
+    Interpreter::EntityType::ELSE_IF,
+    Interpreter::EntityType::BREAK,
+    Interpreter::EntityType::CONTINUE,
+    Interpreter::EntityType::FUNCTION,
+    Interpreter::EntityType::ARGUMENT,
+    Interpreter::EntityType::MACRO,
+    Interpreter::EntityType::VARIABLE,
+    Interpreter::EntityType::VALUE,
+    Interpreter::EntityType::GOTO,
+  };
+  const size_t i = static_cast<size_t>(keyw);
+  return i < sizeof(kMap) / sizeof(kMap[0]) ? kMap[i] : Interpreter::EntityType::EXPRESSION;
+}
+
+Interpreter::Interpreter() : m_d(std::make_unique<Impl>()) {}
+Interpreter::~Interpreter() = default;
+Interpreter::Interpreter(const Interpreter& other)
+    : m_d(std::make_unique<Impl>()) {
+  if (other.m_d) {
     *m_d = *other.m_d;
+  }
 }
-Interpreter::Interpreter(Interpreter&& other) {
-  std::swap(m_d, other.m_d);
-}
+Interpreter::Interpreter(Interpreter&& other) noexcept = default;
 Interpreter& Interpreter::operator=(const Interpreter& other) {
-  if ((this != &other) && m_d && other.m_d)
-    *m_d = *other.m_d;
-  return *this;
-}
-Interpreter& Interpreter::operator=(Interpreter&& other) {
   if (this != &other) {
-    std::swap(m_d, other.m_d);
+    if (other.m_d) {
+      if (!m_d) {
+        m_d = std::make_unique<Impl>();
+      }
+      *m_d = *other.m_d;
+    }
   }
   return *this;
 }
-string Interpreter::cmd(string script) {
-  return m_d ? m_d->cmd(move(script)) : "";
+Interpreter& Interpreter::operator=(Interpreter&& other) noexcept = default;
+Interpreter::CmdResult Interpreter::cmd(std::string script) {
+  return m_d ? m_d->cmd(std::move(script))
+             : Interpreter::CmdResult{Interpreter::Value{std::string{}}, {}};
 }
-bool Interpreter::parseScript(std::string script, string& outErr) {
-  return m_d ? m_d->parseScript(move(script), outErr) : false;
+bool Interpreter::parseScript(std::string script, Error& outErr) {
+  return m_d ? m_d->parseScript(std::move(script), outErr) : false;
 }
-std::string Interpreter::runScript() {
-  return m_d ? m_d->runScript() : "";
+std::pair<Interpreter::Value, Interpreter::Error> Interpreter::runScript() {
+  return m_d ? m_d->runScript()
+             : std::pair<Value, Error>{Value{std::string{}}, {}};
 }
-bool Interpreter::addFunction(const string& name, UserFunction ufunc) {
+bool Interpreter::addFunction(const std::string& name, UserFunction ufunc) {
   return m_d ? m_d->addFunction(name, ufunc) : false;
 }
-bool Interpreter::addOperator(const string& name, UserOperator uoper, uint32_t priority) {
+bool Interpreter::addOperator(const std::string& name, UserOperator uoper, uint32_t priority) {
   return m_d ? m_d->addOperator(name, uoper, priority) : false;
 }
 bool Interpreter::addAttribute(const std::string& name) {
   return m_d ? m_d->addAttribute(name) : false;
 }
-std::map<std::string, std::string> Interpreter::allVariables() const {
-  return m_d ? m_d->allVariables() : std::map<std::string, std::string>();
+std::map<std::string, Interpreter::Value> Interpreter::allVariables() const {
+  return m_d ? m_d->allVariables() : std::map<std::string, Interpreter::Value>();
 }
-std::string Interpreter::variable(const std::string& vname) const {
-  return m_d ? m_d->variable(vname) : "";
+Interpreter::Value Interpreter::variable(const std::string& vname) const {
+  return m_d ? m_d->variable(vname) : Interpreter::Value{std::string{}};
 }
-std::string Interpreter::runFunction(const std::string& fname, const std::vector<std::string>& args) {
-  return m_d ? m_d->runFunction(fname, args) : "";
+Interpreter::Value Interpreter::runFunction(const std::string& fname, const std::vector<Interpreter::Value>& args) {
+  return m_d ? m_d->runFunction(fname, args) : Interpreter::Value{std::string{}};
 }
-bool Interpreter::setVariable(const std::string& vname, const std::string& value) {
+bool Interpreter::setVariable(const std::string& vname, const Interpreter::Value& value) {
   return m_d ? m_d->setVariable(vname, value) : false;
 }
 bool Interpreter::setMacro(const std::string& mname, const std::string& script) {
@@ -1285,4 +1783,239 @@ Interpreter::UserFunction Interpreter::getUserFunction(const std::string& fname)
 }
 Interpreter::UserOperator Interpreter::getUserOperator(const std::string& oname) {
   return m_d ? m_d->getUserOperator(oname) : nullptr;
+}
+
+// --- value helpers ---
+
+std::string Interpreter::valueToString(const Interpreter::Value& v) {
+  return std::visit([](auto&& arg) -> std::string {
+    using T = std::decay_t<decltype(arg)>;
+    if constexpr (std::is_same_v<T, bool>) {
+      return arg ? "1" : "0";
+    }
+    else if constexpr (std::is_same_v<T, int64_t>) {
+      return std::to_string(arg);
+    }
+    else if constexpr (std::is_same_v<T, double>) {
+      std::ostringstream os;
+      os << std::fixed << std::setprecision(10) << arg;
+      std::string s = os.str();
+      while (s.size() > 1 && s.back() == '0') {
+        s.pop_back();
+      }
+      if (s.size() > 1 && s.back() == '.') {
+        s.pop_back();
+      }
+      return s;
+    }
+    else if constexpr (std::is_same_v<T, Interpreter::ControlFlow>) {
+      return arg == Interpreter::ControlFlow::Break ? "break" : "continue";
+    }
+    else {
+      return arg;
+    }
+  }, v);
+}
+
+Interpreter::Value Interpreter::valueFromLiteral(std::string_view s) {
+  if (s.empty()) {
+    return std::string{};
+  }
+  if (auto n = ir::detail::parseNumber(s)) {
+    return *n;
+  }
+  return std::string(s);
+}
+
+bool Interpreter::valueIsTruthy(const Interpreter::Value& v) {
+  return std::visit([](auto&& arg) -> bool {
+    using T = std::decay_t<decltype(arg)>;
+    if constexpr (std::is_same_v<T, bool>) {
+      return arg;
+    }
+    else if constexpr (std::is_same_v<T, int64_t>) {
+      return arg != 0;
+    }
+    else if constexpr (std::is_same_v<T, double>) {
+      return arg != 0.0;
+    }
+    else if constexpr (std::is_same_v<T, Interpreter::ControlFlow>) {
+      return true;
+    }
+    else {
+      return !arg.empty();
+    }
+  }, v);
+}
+
+std::string Interpreter::valueAsString(const Interpreter::Value& v) {
+  if (const auto* s = std::get_if<std::string>(&v)) {
+    return *s;
+  }
+  return Interpreter::valueToString(v);
+}
+
+std::string Interpreter::valueAsInitBody(const Interpreter::Value& v) {
+  if (const auto* s = std::get_if<std::string>(&v)) {
+    return *s;
+  }
+  return {};
+}
+
+std::string Interpreter::operandName(Interpreter& ir, const Interpreter::Value& opd) {
+  const size_t idx = ir.currentEntity().beginIndex;
+  if (idx > 0) {
+    const std::string name = ir.getEntityByIndex(idx - 1).name;
+    if (!name.empty()) {
+      return name;
+    }
+  }
+  return Interpreter::valueAsString(opd);
+}
+
+bool Interpreter::valueIsInteger(const Interpreter::Value& v) {
+  return std::holds_alternative<int64_t>(v);
+}
+
+bool Interpreter::valueIsNumeric(const Interpreter::Value& v) {
+  if (std::holds_alternative<int64_t>(v) || std::holds_alternative<double>(v)) {
+    return true;
+  }
+  if (const auto* s = std::get_if<std::string>(&v)) {
+    return ir::detail::isDigits(*s);
+  }
+  return false;
+}
+
+int64_t Interpreter::valueAsInt64(const Interpreter::Value& v) {
+  if (const auto* i = std::get_if<int64_t>(&v)) {
+    return *i;
+  }
+  if (const auto* s = std::get_if<std::string>(&v)) {
+    if (auto n = ir::detail::parseInteger(*s)) {
+      return *n;
+    }
+    return 0;
+  }
+  if (const auto* b = std::get_if<bool>(&v)) {
+    return *b ? 1 : 0;
+  }
+  if (const auto* d = std::get_if<double>(&v)) {
+    return static_cast<int64_t>(*d);
+  }
+  return 0;
+}
+
+std::vector<Interpreter::Value> Interpreter::makeParam(const std::string& s) {
+  return Interpreter::makeParam(std::string_view{s});
+}
+
+std::vector<Interpreter::Value> Interpreter::makeParam(std::string_view s) {
+  if (s.empty()) {
+    return {};
+  }
+  return {std::string(s)};
+}
+
+std::string Interpreter::paramAsString(const std::vector<Interpreter::Value>& params) {
+  return params.empty() ? std::string{} : Interpreter::valueAsString(params[0]);
+}
+
+Interpreter::Value Interpreter::valueFromParams(const std::vector<Interpreter::Value>& params,
+    const Interpreter::Value& fallback) {
+  if (params.empty()) {
+    return fallback;
+  }
+  if (const auto* i = std::get_if<int64_t>(&params[0])) {
+    return *i;
+  }
+  if (const auto* s = std::get_if<std::string>(&params[0])) {
+    return s->empty() ? fallback : Interpreter::valueFromLiteral(*s);
+  }
+  return fallback;
+}
+
+std::string Interpreter::cmdResultToString(const Interpreter::CmdResult& r) {
+  if (r.second) {
+    return r.second.message;
+  }
+  return Interpreter::valueToString(r.first);
+}
+
+bool Interpreter::hasError(const Interpreter::Error& err) {
+  return static_cast<bool>(err);
+}
+
+bool Interpreter::isParseError(const Interpreter::Error& err) {
+  return err && err.kind == Interpreter::Error::Kind::Parse;
+}
+
+std::string_view Interpreter::valueAsStringView(const Interpreter::Value& v) {
+  if (const auto* s = std::get_if<std::string>(&v)) {
+    return *s;
+  }
+  return {};
+}
+
+namespace InterpreterCompareDetail {
+
+std::optional<double> valueAsDouble(const Interpreter::Value& v) {
+  if (const auto* i = std::get_if<int64_t>(&v)) {
+    return static_cast<double>(*i);
+  }
+  if (const auto* d = std::get_if<double>(&v)) {
+    return *d;
+  }
+  if (const auto* s = std::get_if<std::string>(&v)) {
+    if (!Interpreter::valueIsNumeric(v)) {
+      return std::nullopt;
+    }
+    try {
+      size_t pos = 0;
+      const double x = std::stod(*s, &pos);
+      if (pos == s->size()) {
+        return x;
+      }
+    }
+    catch (const std::exception&) {
+    }
+  }
+  return std::nullopt;
+}
+
+} // namespace InterpreterCompareDetail
+
+bool Interpreter::valueEquals(const Interpreter::Value& a, const Interpreter::Value& b) {
+  if (a.index() != b.index()) {
+    return Interpreter::valueAsString(a) == Interpreter::valueAsString(b);
+  }
+  return std::visit([&b](const auto& lhs) -> bool {
+    using T = std::decay_t<decltype(lhs)>;
+    return lhs == std::get<T>(b);
+  }, a);
+}
+
+int Interpreter::valueCompare(const Interpreter::Value& a, const Interpreter::Value& b) {
+  if (Interpreter::valueIsNumeric(a) && Interpreter::valueIsNumeric(b)) {
+    const auto da = InterpreterCompareDetail::valueAsDouble(a);
+    const auto db = InterpreterCompareDetail::valueAsDouble(b);
+    if (da && db) {
+      if (*da < *db) {
+        return -1;
+      }
+      if (*da > *db) {
+        return 1;
+      }
+      return 0;
+    }
+  }
+  const std::string sa = Interpreter::valueAsString(a);
+  const std::string sb = Interpreter::valueAsString(b);
+  if (sa.size() < sb.size()) {
+    return -1;
+  }
+  if (sa.size() > sb.size()) {
+    return 1;
+  }
+  return 0;
 }

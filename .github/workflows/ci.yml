@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtest-dev g++
+      - name: Build and test
+        run: cd src && make && ./test
+      - name: Smoke compile C API
+        run: |
+          echo '#include "../include/interpreter_c.h"' > /tmp/ir_c_smoke.c
+          gcc -c -x c /tmp/ir_c_smoke.c -I.
+          g++ -std=c++17 -O2 -Wall -c src/interpreter_c.cpp -I. -o /tmp/ir_c_api.o

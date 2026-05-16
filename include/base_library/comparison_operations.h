@@ -1,63 +1,50 @@
 
 #include "../../include/interpreter.h"
 
-#include <cctype>
-
 namespace InterpreterBaseLib {
 
   class ComparisonOperations {
   public:
-    bool isNumber(const std::string& s) const {
-      for (auto c : s) {
-        if (!std::isdigit(c)) {
-          return false;
-        }
-      }
-      return !s.empty();
-    }
-        
     ComparisonOperations(Interpreter& ir)
-    {      
-      ir.addOperator("==", [](std::string& leftOpd, std::string& rightOpd) ->std::string {
-        return leftOpd == rightOpd ? "1" : "0";
-        }, 2);
+    {
+      ir.addOperator("==", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (const auto* ls = std::get_if<std::string>(&leftOpd)) {
+          if (const auto* rs = std::get_if<std::string>(&rightOpd)) {
+            return *ls == *rs;
+          }
+        }
+        return Interpreter::valueEquals(leftOpd, rightOpd);
+      }, 2);
 
-      ir.addOperator("!=", [](std::string& leftOpd, std::string& rightOpd) ->std::string {
-        return leftOpd != rightOpd ? "1" : "0";
-        }, 2);
+      ir.addOperator("!=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (const auto* ls = std::get_if<std::string>(&leftOpd)) {
+          if (const auto* rs = std::get_if<std::string>(&rightOpd)) {
+            return *ls != *rs;
+          }
+        }
+        return !Interpreter::valueEquals(leftOpd, rightOpd);
+      }, 2);
 
-      ir.addOperator(">", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-        if (isNumber(leftOpd) && isNumber(rightOpd))
-          return stoi(leftOpd) > stoi(rightOpd) ? "1" : "0";
-        else
-          return leftOpd.size() > rightOpd.size() ? "1" : "0";
-        }, 2);
+      ir.addOperator(">", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        return Interpreter::valueCompare(leftOpd, rightOpd) > 0;
+      }, 2);
 
-      ir.addOperator("<", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-        if (isNumber(leftOpd) && isNumber(rightOpd))
-          return stoi(leftOpd) < stoi(rightOpd) ? "1" : "0";
-        else
-          return leftOpd.size() < rightOpd.size() ? "1" : "0";
-        }, 2);
+      ir.addOperator("<", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        return Interpreter::valueCompare(leftOpd, rightOpd) < 0;
+      }, 2);
 
-      ir.addOperator(">=", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-        if (isNumber(leftOpd) && isNumber(rightOpd))
-          return stoi(leftOpd) >= stoi(rightOpd) ? "1" : "0";
-        else
-          return leftOpd.size() >= rightOpd.size() ? "1" : "0";
-        }, 2);
+      ir.addOperator(">=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        return Interpreter::valueCompare(leftOpd, rightOpd) >= 0;
+      }, 2);
 
-      ir.addOperator("<=", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-        if (isNumber(leftOpd) && isNumber(rightOpd))
-          return stoi(leftOpd) <= stoi(rightOpd) ? "1" : "0";
-        else
-          return leftOpd.size() <= rightOpd.size() ? "1" : "0";
-        }, 2);
+      ir.addOperator("<=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        return Interpreter::valueCompare(leftOpd, rightOpd) <= 0;
+      }, 2);
 
-      ir.addOperator("=", [](std::string& leftOpd, std::string& rightOpd) ->std::string {
+      ir.addOperator("=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
         leftOpd = rightOpd;
         return leftOpd;
-        }, 100);
+      }, 100);
     }
   };
 }

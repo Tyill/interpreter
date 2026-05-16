@@ -54,66 +54,66 @@ int main(int argc, char* argv[])
   InterpreterBaseLib::Filesystem ir_fs(ir);
   InterpreterBaseLib::Structure ir_st(ir);
 
-  ir.addFunction("summ", [](const vector<string>& args) ->string {
-    int res = 0;
+  ir.addFunction("summ", [](const vector<Interpreter::Value>& args) -> Interpreter::Value {
+    int64_t res = 0;
     for (auto& v : args) {
-      if (isNumber(v)) res += stoi(v);
+      res += Interpreter::valueAsInt64(v);
     }
-    return to_string(res);
+    return res;
   });
 
-  ir.addFunction("print", [](const vector<string>& args) ->string {
+  ir.addFunction("print", [](const vector<Interpreter::Value>& args) -> Interpreter::Value {
     for (auto& v : args) {
-      printf("%s ", v.c_str());
+      printf("%s ", Interpreter::valueToString(v).c_str());
     }
     printf("\n");
-    return "";
+    return std::string{};
   });
 
   string script = "$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;";
-  string res = ir.cmd(script); // 9
+  string res = Interpreter::cmdResultToString(ir.cmd(script)); // 9
   
   script = "$a{5}; $b{2}; $c = summ($a, ($a + ($a * ($b + $a))), summ(5)); $c;";
-  res = ir.cmd(script); // 50
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 50
   
   script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); a[2]";
-  res = ir.cmd(script); // 3
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 3
   
   script = "b = Map; b.insert(myKeyOne, myValueOne); b.insert(myKeyTwo, myValueTwo); b[\"myKeyTwo\"]";
-  res = ir.cmd(script); // myValueTwo
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // myValueTwo
   
   script = "a = Vector; a.push_back(1); a.push_back(2); a.push_back(3); while($v : a) print($v);";
-  res = ir.cmd(script); // 1 2 3
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 1 2 3
   
   script = "a = Vector{1 + 2, 2 + 3, 3 + 4}; while($v : a) print($v);";
-  res = ir.cmd(script); // 3 5 7
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 3 5 7
   
   script = "$b = 12; c = Map{ one : $b + 5, two : 2}; while($v : c) print($v);";
-  res = ir.cmd(script); // one 17 two 2
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // one 17 two 2
   
   script = "e = Struct{ one : 5, two : 2}; e.one = summ(e.one, e.two); e.one";
-  res = ir.cmd(script); // 7
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 7
   
   script = "$b = 12; e = Struct{ one : $b + 5, two : 2}; e.three = e.one + e.two + 3; e.three";
-  res = ir.cmd(script); // 22
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 22
   
   script = "file1 = File{\"main.cpp\"}; file2 = File{\"mainCopy.txt\"}; if (file1.exist()) { $data = file1.read(); file2.write($data); }";
-  res = ir.cmd(script);
+  res = Interpreter::cmdResultToString(ir.cmd(script));
   
   script = "$a = 1; $b = 2; function myFunc{ $a += $b; }; myFunc()";
-  res = ir.cmd(script); // 3
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 3
   
   script = "$a = 1; $b = 2; function myFunc{ $a += $b; function myFunc2{ $a += $b; }; myFunc2(); }; myFunc()";
-  res = ir.cmd(script); // 5
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 5
 
   script = "function myFunc{ if ($0 > 1) $a = $0 * myFunc($0 - 1); else $a = 1; $a }; myFunc(5)";
-  res = ir.cmd(script); // 120
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 120
   
   script = "function myFunc{ $0 += $1; }; myFunc(2, 3)";
-  res = ir.cmd(script); // 5
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // 5
   
   script = "b: str = 123; type(b)";
-  res = ir.cmd(script); // str
+  res = Interpreter::cmdResultToString(ir.cmd(script)); // str
 
   return 0;
 }

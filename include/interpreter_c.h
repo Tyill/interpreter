@@ -36,13 +36,20 @@
 #define INTERPRETER_API
 #endif
 
+#include <stddef.h>
 #include <stdint.h>
 
 #if defined(__cplusplus)
 extern "C" {
 #endif /* __cplusplus */
 
-typedef enum BOOL{ FALSE = 0, TRUE = 1}BOOL;
+#define IR_PARSE_ERR_SIZE 256
+
+#ifndef BOOL
+typedef enum { IR_FALSE = 0, IR_TRUE = 1 } BOOL;
+#define FALSE IR_FALSE
+#define TRUE IR_TRUE
+#endif
 
 typedef char*(*irUserFunction)(char** args, size_t count);
 typedef char*(*irUserOperator)(char** ioLeftOperand, char** ioRightOperand);
@@ -70,10 +77,8 @@ INTERPRETER_API BOOL irAddOperator(HIntr, char* name, irUserOperator uopr, uint3
 /// @return result or error
 INTERPRETER_API char* irCmd(HIntr, char* script);
 
-/// Parse script
-/// @param script
-/// return true - ok
-INTERPRETER_API BOOL irParseScript(HIntr, char* script, char* outErr /*sz 256*/);
+/// Parse script; outErr optional; outErrSize buffer size (use IR_PARSE_ERR_SIZE when outErr set); outPos optional.
+INTERPRETER_API BOOL irParseScript(HIntr, char* script, char* outErr, size_t outErrSize, size_t* outPos);
 
 /// Run script
 /// return result
@@ -103,8 +108,10 @@ INTERPRETER_API BOOL irGotoOnLabel(HIntr, char* lname);
     
 /// Exit from script
 INTERPRETER_API void irExitFromScript(HIntr);
-  
- 
+
+/// Free strings returned by irCmd, irRunScript, irVariable (not required for NULL).
+INTERPRETER_API void irFree(char* p);
+
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */

@@ -1,99 +1,80 @@
 
 #include "../../include/interpreter.h"
 
-#include <cctype>
-
 namespace InterpreterBaseLib {
 
   class ArithmeticOperations {
   public:
-    bool isNumber(const std::string& s) const {
-      for (auto c : s) {
-        if (!std::isdigit(c)) {
-          return false;
-        }
-      }
-      return !s.empty();
-    }
-        
     ArithmeticOperations(Interpreter& ir)
     {
-      ir.addOperator("*", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-      if (isNumber(leftOpd) && isNumber(rightOpd))
-        return std::to_string(stoi(leftOpd) * stoi(rightOpd));
-      else
-        return "0";
+      ir.addOperator("*", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (Interpreter::valueIsNumeric(leftOpd) && Interpreter::valueIsNumeric(rightOpd))
+          return Interpreter::valueAsInt64(leftOpd) * Interpreter::valueAsInt64(rightOpd);
+        return int64_t{0};
       }, 0);
 
-    ir.addOperator("/", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-      if (isNumber(leftOpd) && isNumber(rightOpd))
-        return std::to_string(stoi(leftOpd) / stoi(rightOpd));
-      else
-        return "0";
+      ir.addOperator("/", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (Interpreter::valueIsNumeric(leftOpd) && Interpreter::valueIsNumeric(rightOpd))
+          return Interpreter::valueAsInt64(leftOpd) / Interpreter::valueAsInt64(rightOpd);
+        return int64_t{0};
       }, 0);
 
-    ir.addOperator("+", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-      if (isNumber(leftOpd) && isNumber(rightOpd))
-        return std::to_string(stoi(leftOpd) + stoi(rightOpd));
-      else
-        return leftOpd + rightOpd;
+      ir.addOperator("+", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (Interpreter::valueIsNumeric(leftOpd) && Interpreter::valueIsNumeric(rightOpd))
+          return Interpreter::valueAsInt64(leftOpd) + Interpreter::valueAsInt64(rightOpd);
+        return Interpreter::valueAsString(leftOpd) + Interpreter::valueAsString(rightOpd);
       }, 1);
 
-    ir.addOperator("-", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-      if (isNumber(leftOpd) && isNumber(rightOpd))
-        return std::to_string(stoi(leftOpd) - stoi(rightOpd));
-      else
-        return "0";
+      ir.addOperator("-", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (Interpreter::valueIsNumeric(leftOpd) && Interpreter::valueIsNumeric(rightOpd))
+          return Interpreter::valueAsInt64(leftOpd) - Interpreter::valueAsInt64(rightOpd);
+        return int64_t{0};
       }, 1);
 
-    ir.addOperator("+=", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-    if (isNumber(leftOpd) && isNumber(rightOpd)){
-      leftOpd = std::to_string(stoi(leftOpd) + stoi(rightOpd));
-      return leftOpd;
-    }    
-    else{
-      leftOpd += rightOpd;
-      return leftOpd;
-    }
-  }, 4);
+      ir.addOperator("+=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (Interpreter::valueIsNumeric(leftOpd) && Interpreter::valueIsNumeric(rightOpd)) {
+          leftOpd = Interpreter::valueAsInt64(leftOpd) + Interpreter::valueAsInt64(rightOpd);
+          return leftOpd;
+        }
+        leftOpd = Interpreter::valueAsString(leftOpd) + Interpreter::valueAsString(rightOpd);
+        return leftOpd;
+      }, 4);
 
-  ir.addOperator("-=", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-    if (isNumber(leftOpd) && isNumber(rightOpd)){
-      leftOpd = std::to_string(stoi(leftOpd) - stoi(rightOpd));
-      return leftOpd;
-    }     
-    else{
-      leftOpd += rightOpd;
-      return leftOpd;
-    }
-  }, 4);
-  ir.addOperator("++", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-    if (isNumber(leftOpd)){
-      leftOpd = std::to_string(stoi(leftOpd) + 1);
-      return leftOpd;
-    }    
-    if (isNumber(rightOpd)){
-      rightOpd = std::to_string(stoi(rightOpd) + 1);
-    }
-    return rightOpd;
-  }, 4);
+      ir.addOperator("-=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (Interpreter::valueIsNumeric(leftOpd) && Interpreter::valueIsNumeric(rightOpd)) {
+          leftOpd = Interpreter::valueAsInt64(leftOpd) - Interpreter::valueAsInt64(rightOpd);
+          return leftOpd;
+        }
+        leftOpd = Interpreter::valueAsString(leftOpd) + Interpreter::valueAsString(rightOpd);
+        return leftOpd;
+      }, 4);
 
-  ir.addOperator("--", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-    if (isNumber(leftOpd)){
-      leftOpd = std::to_string(stoi(leftOpd) - 1);
-      return leftOpd;
-    }    
-    if (isNumber(rightOpd)){
-      rightOpd = std::to_string(stoi(rightOpd) - 1);
-    }
-    return rightOpd;
-  }, 4);
-    
-  ir.addOperator("=", [this](std::string& leftOpd, std::string& rightOpd) ->std::string {
-    leftOpd = rightOpd;
-    return leftOpd;
-  }, 100);
+      ir.addOperator("++", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (Interpreter::valueIsNumeric(leftOpd)) {
+          leftOpd = Interpreter::valueAsInt64(leftOpd) + 1;
+          return leftOpd;
+        }
+        if (Interpreter::valueIsNumeric(rightOpd)) {
+          rightOpd = Interpreter::valueAsInt64(rightOpd) + 1;
+        }
+        return rightOpd;
+      }, 4);
 
-  }
+      ir.addOperator("--", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        if (Interpreter::valueIsNumeric(leftOpd)) {
+          leftOpd = Interpreter::valueAsInt64(leftOpd) - 1;
+          return leftOpd;
+        }
+        if (Interpreter::valueIsNumeric(rightOpd)) {
+          rightOpd = Interpreter::valueAsInt64(rightOpd) - 1;
+        }
+        return rightOpd;
+      }, 4);
+
+      ir.addOperator("=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+        leftOpd = rightOpd;
+        return leftOpd;
+      }, 100);
+    }
   };
 }
