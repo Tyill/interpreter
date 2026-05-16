@@ -289,7 +289,11 @@ int main(int argc, char* argv[])
 
 ### Documentation
 
-Extended guides (English): **[docs/README.md](docs/README.md)**
+Extended guides: [docs/README.md](docs/README.md)
+
+### Benchmarks
+
+[docs/benchmarks.md](docs/benchmarks.md)
 
 ### License
 Licensed under an [MIT-2.0]-[license](LICENSE).

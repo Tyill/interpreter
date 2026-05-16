@@ -10,6 +10,7 @@ English guides for embedding and using the Tiny interpreter library.
 | [Base library](base-library.md) | Optional modules: arithmetic, containers, filesystem, … |
 | [Limitations](limitations.md) | Known quirks and edge cases |
 | [Copy and containers](copy-and-containers.md) | `Interpreter` copy vs `Map` / `Vector` variable visibility |
+| [Benchmarks](benchmarks.md) | Local `make bench` throughput (reference numbers) |
 
 **Quick links**
 

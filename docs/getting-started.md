@@ -125,3 +125,11 @@ cd src && make && ./test
 ```
 
 Google Test suite (34 tests) covers language features, base library, and API edge cases. When in doubt about behavior, check the matching test in `src/test.cpp`.
+
+## Benchmarks (local)
+
+```bash
+cd src && make bench && ./bench
+```
+
+Details and reference numbers: [Benchmarks](benchmarks.md).
