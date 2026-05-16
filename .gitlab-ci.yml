@@ -1,0 +1,12 @@
+image: ubuntu:latest
+
+before_script:
+  - apt-get update -qq
+  - apt-get install -y -qq libgtest-dev g++
+
+test:
+  script:
+    - cd src && make && ./test
+    - echo '#include "interpreter_c.h"' > /tmp/ir_c_smoke.c
+    - gcc -c -x c /tmp/ir_c_smoke.c -Iinclude
+    - g++ -std=c++17 -O2 -Wall -c src/interpreter_c.cpp -I. -o /tmp/ir_c_api.o
