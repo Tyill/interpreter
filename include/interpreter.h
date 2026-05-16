@@ -91,7 +91,7 @@ public:
 
   /// Run parsed script; second is runtime error (empty on success).
   /// Use after parseScript on the same script text (AST cached via m_prevScript).
-  std::pair<Value, Error> runScript();
+  CmdResult runScript();
 
   /// All variables
   /// @return vname, value
