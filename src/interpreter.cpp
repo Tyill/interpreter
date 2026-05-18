@@ -247,14 +247,12 @@ bool Interpreter::Impl::parseScript(std::string script, Interpreter::Error& outE
   }
 
   if (m_prevScript != script) {
-    m_prevScript = script;
     m_expr.clear();
     m_label.clear();
     m_soper.clear();
     m_parseErr = {};
     std::string checkErr;
     if (!checkScript(script, checkErr) || !parseInstructionScript(script, 0)) {
-      m_prevScript.clear();
       if (!m_parseErr.message.empty()) {
         outErr = m_parseErr;
       }
@@ -264,6 +262,7 @@ bool Interpreter::Impl::parseScript(std::string script, Interpreter::Error& outE
       }
       return false;
     }
+    m_prevScript = std::move(script);
   }
   return true;
 }
@@ -627,9 +626,9 @@ Interpreter::Value Interpreter::Impl::calcExpression(size_t iBegin, size_t iEnd)
     m_soper.insert({ iBegin, std::vector<Operator>() });
   }
   std::vector<Operator>& oprs = m_soper[iBegin];
-  oprs.clear();
-  calcOperatorPriority(iBegin, iEnd, oprs);
-
+  if (oprs.empty()) {
+    calcOperatorPriority(iBegin, iEnd, oprs);
+  }
   if (oprs.empty()) {
     return calcOperation(m_expr[iBegin].keyw, iBegin);
   }
@@ -1118,7 +1117,6 @@ bool Interpreter::Impl::parseInstructionScript(std::string& script, size_t gpos)
       return false;
     }
   }
-  m_prevScript = script;
   return true;
 }
 
