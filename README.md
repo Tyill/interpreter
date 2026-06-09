@@ -22,12 +22,12 @@ string res = cmdResultToString(ir.cmd(ss.str())); // 9
 You can define any functions. Can be passed as parameters to other functions.  
 Simple addition
 ```cpp
- ir.addFunction("summ", [](const vector<string>& args) ->string {
-    int res = 0;
+ ir.addFunction("summ", [](const vector<Interpreter::Value>& args) -> Interpreter::Value {
+    int64_t res = 0;
     for (auto& v : args) {
-      if (isNumber(v)) res += stoi(v);
+      res += Interpreter::valueAsInt64(v);
     }
-    return to_string(res);
+    return res;
   });
 ```
 Use in script
@@ -51,20 +51,18 @@ myFunc(2, 3);                  // call
 ### User operators
 You can define any operators. Simple addition
 ```cpp
- ir.addOperator("=", [](string& leftOpd, string& rightOpd) ->string {
+ ir.addOperator("=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
     leftOpd = rightOpd;
     return leftOpd;
   }, 100);
 
- ir.addOperator("+=", [](string& leftOpd, string& rightOpd) ->string {
-   if (isNumber(leftOpd) && isNumber(rightOpd)){
-     leftOpd = to_string(stoi(leftOpd) + stoi(rightOpd));
-     return leftOpd;
-   }     
-   else{
-     leftOpd += rightOpd;
+ ir.addOperator("+=", [](Interpreter::Value& leftOpd, Interpreter::Value& rightOpd) -> Interpreter::Value {
+   if (Interpreter::valueIsNumeric(leftOpd) && Interpreter::valueIsNumeric(rightOpd)) {
+     leftOpd = Interpreter::valueAsInt64(leftOpd) + Interpreter::valueAsInt64(rightOpd);
      return leftOpd;
    }
+   leftOpd = Interpreter::valueAsString(leftOpd) + Interpreter::valueAsString(rightOpd);
+   return leftOpd;
  }, 100);
 ```
 Use in script
@@ -196,18 +194,8 @@ res = cmdResultToString(ir.cmd(script)); // str
 #include "../include/base_library/filesystem.h"
 #include "../include/base_library/structure.h"
 #include "../include/base_library/types.h"
-#include <cctype>
 
 using namespace std;
-
-bool isNumber(const string& s) {
-  for (auto c : s) {
-    if (!std::isdigit(c)) {
-      return false;
-    }
-  }
-  return !s.empty();
-}
 
 int main(int argc, char* argv[])
 {  
@@ -220,20 +208,20 @@ int main(int argc, char* argv[])
   InterpreterBaseLib::Filesystem ir_fs(ir);
   InterpreterBaseLib::Structure ir_st(ir);
 
-  ir.addFunction("summ", [](const vector<string>& args) ->string {
-    int res = 0;
+  ir.addFunction("summ", [](const vector<Interpreter::Value>& args) -> Interpreter::Value {
+    int64_t res = 0;
     for (auto& v : args) {
-      if (isNumber(v)) res += stoi(v);
+      res += Interpreter::valueAsInt64(v);
     }
-    return to_string(res);
+    return res;
   });
 
-  ir.addFunction("print", [](const vector<string>& args) ->string {
+  ir.addFunction("print", [](const vector<Interpreter::Value>& args) -> Interpreter::Value {
     for (auto& v : args) {
-      printf("%s ", v.c_str());
+      printf("%s ", Interpreter::valueToString(v).c_str());
     }
     printf("\n");
-    return "";
+    return std::string{};
   });
 
   string script = "$a = 5; $b = 2; while ($a > 1){ $a = $a - 1; $b = summ($b, $a); if ($a < 4){ break;} } $b;";
